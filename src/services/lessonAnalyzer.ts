@@ -81,7 +81,15 @@ export async function extractStructuredContentFromDocs(
 
   const promptText = `
 Bạn là chuyên gia Khảo thí và Chương trình GDPT 2018 Việt Nam.
-NHIỆM VỤ: Trích xuất chính xác danh sách Chủ đề, Nội dung / đơn vị kiến thức, và Yêu cầu cần đạt (YCCĐ) nguyên văn từ tài liệu.
+NHIỆM VỤ: Trích xuất chính xác danh sách Chủ đề, Nội dung / đơn vị kiến thức, và Yêu cầu cần đạt (YCCĐ) từ tài liệu bài học tải lên.
+
+RÀNG BUỘC CỨNG BẮT BUỘC VỀ 3 NỘI DUNG MỨC ĐỘ:
+Mỗi bài học / đơn vị kiến thức trích xuất từ file tải lên BẮT BUỘC PHẢI CÓ ĐỦ 3 MỨC ĐỘ NỘI DUNG CỨNG KHẢO THÍ GDPT 2018:
+1. Mức "Biết" (Nhận biết): Động từ hành vi như nêu, kể tên, nhận biết, liệt kê, gọi tên, định nghĩa...
+2. Mức "Hiểu" (Thông hiểu): Động từ hành vi như giải thích, mô tả, so sánh, phân biệt, tóm tắt, minh họa...
+3. Mức "V.Dung" / "Vận dụng" (Vận dụng & Vận dụng cao): Động từ hành vi như vận dụng, tính toán, đề xuất, phân tích, giải quyết bài tập / tình huống thực tế...
+
+NẾU TÀI LIỆU CHƯA NÊU ĐỦ 3 MỨC NÀY, BẠN PHẢI TỰ ĐỘNG BỔ SUNG CÁC YCCĐ CHO ĐỦ CẢ 3 MỨC "Biết", "Hiểu", "V.Dung" CHO MỖI NỘI DUNG/BÀI HỌC!
 
 THÔNG TIN ĐẦU VÀO:
 - Môn: ${config.subject || 'Tự nhận diện'}
@@ -92,10 +100,9 @@ ${docs.map((d, i) => `File ${i + 1} (${d.name}): ${(d.content || '').slice(0, 80
 RÀNG BUỘC NGHIÊM NGẶT SCHEMA JSON:
 1. "chuDe": Mảng danh sách các Chủ đề / Chương (1-30). GIỮ NGUYÊN VĂN 100% ĐẦY ĐỦ TÊN BÀI HỌC VÀ CHƯƠNG TỪ TÀI LIỆU, KHÔNG ĐƯỢC TÓM TẮT HOẶC CẮT BỚT.
 2. "noiDung": Mỗi chủ đề có mảng các "Nội dung / đơn vị kiến thức" (1-30). TÊN NỘI DUNG / BÀI HỌC PHẢI CHÍNH XÁC NGUYÊN VĂN ĐẦY ĐỦ GIỐNG HỆT TÊN TÀI LIỆU VÀ TÊN BÀI ĐƯỢC GỬI LÊN (VD: "BÀI 1 - KHÁI QUÁT VỀ CƠ KHÍ CHẾ TẠO"), TUYỆT ĐỐI KHÔNG RÚT GỌN HOẶC BỎ BỚT TỪ.
-3. "yccd": Mỗi Nội dung có danh sách các Yêu cầu cần đạt nguyên văn trích từ tài liệu. Mã YCCĐ đánh số theo nội dung (VD: ND1.1, ND1.2).
-4. Động từ hành vi ("dongTu") trích từ YCCĐ (kể tên, nêu, giải thích, vận dụng...).
+3. "yccd": Mỗi Nội dung có danh sách các Yêu cầu cần đạt trích xuất hoặc bổ sung đủ 3 mức (Biết, Hiểu, V.Dung). Mã YCCĐ đánh số theo nội dung (VD: ND1.1, ND1.2, ND1.3).
+4. Động từ hành vi ("dongTu") trích từ YCCĐ (nêu, giải thích, vận dụng...).
 5. TUYỆT ĐỐI KHÔNG CHÈN BẤT KỲ KÝ HIỆU LẠ HOẶC NHÃN NHƯ [?] VÀO ĐẦU HOẶC TRONG NỘI DUNG YCCĐ.
-6. Nếu nội dung nào hoàn toàn không có YCCĐ -> Trả về mảng yccd rỗng [].
 
 TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
 {
@@ -114,8 +121,18 @@ TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
           "yccd": [
             {
               "ma": "ND1.1",
-              "noiDung": "Nội dung YCCĐ nguyên văn",
+              "noiDung": "Nêu/nhận biết được các khái niệm cơ bản...",
               "dongTu": "nêu"
+            },
+            {
+              "ma": "ND1.2",
+              "noiDung": "Giải thích/phân biệt được nguyên lý, bản chất...",
+              "dongTu": "giải thích"
+            },
+            {
+              "ma": "ND1.3",
+              "noiDung": "Vận dụng kiến thức để giải quyết bài tập...",
+              "dongTu": "vận dụng"
             }
           ]
         }
@@ -163,6 +180,7 @@ TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
           .filter((nd: any) => nd && typeof nd === 'object')
           .map((nd: any, ndIdx: number) => {
             const ndId = safeString(nd?.id) || `ND${cdIdx + 1}_${ndIdx + 1}`;
+            const ndName = safeString(nd?.ten) || `Nội dung ${ndIdx + 1}`;
             const rawYccd = Array.isArray(nd?.yccd) ? nd.yccd : [];
 
             let yccdList: YccdItem[] = rawYccd
@@ -182,20 +200,39 @@ TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
                 };
               });
 
-            if (yccdList.length === 0) {
-              yccdList = [
-                {
-                  ma: `${ndId}.1`,
-                  noiDung: 'THIẾU YCCĐ – cần bổ sung',
-                  dongTu: 'thiếu',
-                  mucToiDa: 'Biet',
-                },
-              ];
+            // GUARANTEE 3 HARD CONTENT LEVELS: Biết, Hiểu, V.Dung
+            const hasBiet = yccdList.some((y) => y.mucToiDa === 'Biet');
+            const hasHieu = yccdList.some((y) => y.mucToiDa === 'Hieu');
+            const hasVD = yccdList.some((y) => y.mucToiDa === 'VanDung');
+
+            if (!hasBiet) {
+              yccdList.unshift({
+                ma: `${ndId}.B`,
+                noiDung: `Nhận biết và nêu được các khái niệm, kiến thức cơ bản của ${ndName}`,
+                dongTu: 'nhận biết',
+                mucToiDa: 'Biet',
+              });
+            }
+            if (!hasHieu) {
+              yccdList.push({
+                ma: `${ndId}.H`,
+                noiDung: `Hiểu và giải thích được bản chất, ý nghĩa kiến thức của ${ndName}`,
+                dongTu: 'giải thích',
+                mucToiDa: 'Hieu',
+              });
+            }
+            if (!hasVD) {
+              yccdList.push({
+                ma: `${ndId}.VD`,
+                noiDung: `Vận dụng kiến thức của ${ndName} để giải quyết bài tập và tình huống thực tiễn`,
+                dongTu: 'vận dụng',
+                mucToiDa: 'VanDung',
+              });
             }
 
             return {
               id: ndId,
-              ten: safeString(nd?.ten) || `Nội dung ${ndIdx + 1}`,
+              ten: ndName,
               trongSo: Number(nd?.trongSo) || yccdList.length || 1,
               yccd: yccdList,
             };
@@ -217,15 +254,21 @@ TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
               yccd: [
                 {
                   ma: 'ND1.1',
-                  noiDung: `Nêu được các nội dung kiến thức trọng tâm của bài ${defaultName}`,
-                  dongTu: 'nêu',
+                  noiDung: `Nhận biết và nêu được các nội dung kiến thức trọng tâm của bài ${defaultName}`,
+                  dongTu: 'nhận biết',
                   mucToiDa: 'Biet',
                 },
                 {
                   ma: 'ND1.2',
-                  noiDung: `Hiểu và giải thích được các ứng dụng thực tế của bài ${defaultName}`,
+                  noiDung: `Hiểu và giải thích được bản chất kiến thức và ứng dụng của bài ${defaultName}`,
                   dongTu: 'giải thích',
                   mucToiDa: 'Hieu',
+                },
+                {
+                  ma: 'ND1.3',
+                  noiDung: `Vận dụng kiến thức bài ${defaultName} vào giải quyết bài tập và thực tiễn`,
+                  dongTu: 'vận dụng',
+                  mucToiDa: 'VanDung',
                 },
               ],
             },
