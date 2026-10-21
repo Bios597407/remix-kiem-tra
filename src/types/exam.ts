@@ -279,6 +279,11 @@ export interface GradeTabState {
   textbook: string;
   examTitle: string;
   durationMinutes: number;
+  topicTitle?: string;
+  chapter?: string;
+  knowledgeScope?: string;
+  learningOutcomes?: string;
+  readingPassage?: string;
   chuDeList: ChuDeItem[];
   luat: LuatConfig;
   nangLucList: NangLucItem[];

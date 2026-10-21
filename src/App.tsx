@@ -143,6 +143,11 @@ export default function App() {
       textbook: currentTabState.textbook,
       examTitle: currentTabState.examTitle,
       durationMinutes: currentTabState.durationMinutes,
+      topicTitle: currentTabState.topicTitle,
+      chapter: currentTabState.chapter,
+      knowledgeScope: currentTabState.knowledgeScope,
+      learningOutcomes: currentTabState.learningOutcomes,
+      readingPassage: currentTabState.readingPassage,
       luat: currentTabState.luat,
       nangLuc: currentTabState.nangLucList,
       uploadedDocs: currentTabState.uploadedDocs,
@@ -333,6 +338,11 @@ export default function App() {
                   durationMinutes: newCfg.durationMinutes,
                   schoolName: newCfg.schoolName,
                   academicYear: newCfg.academicYear,
+                  topicTitle: newCfg.topicTitle !== undefined ? newCfg.topicTitle : prev.topicTitle,
+                  chapter: newCfg.chapter !== undefined ? newCfg.chapter : prev.chapter,
+                  knowledgeScope: newCfg.knowledgeScope !== undefined ? newCfg.knowledgeScope : prev.knowledgeScope,
+                  learningOutcomes: newCfg.learningOutcomes !== undefined ? newCfg.learningOutcomes : prev.learningOutcomes,
+                  readingPassage: newCfg.readingPassage !== undefined ? newCfg.readingPassage : prev.readingPassage,
                   uploadedDocs: newCfg.uploadedDocs !== undefined ? newCfg.uploadedDocs : prev.uploadedDocs,
                 }));
               }}

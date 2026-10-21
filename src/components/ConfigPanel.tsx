@@ -14,6 +14,8 @@ import {
   FileText,
   Clock,
   Layers,
+  Download,
+  ArrowDownRight,
 } from 'lucide-react';
 import {
   ExamConfig,
@@ -113,35 +115,116 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const handleApplyCurriculumTopics = (selectedTopics: CurriculumTopic[]) => {
     if (selectedTopics.length === 0) return;
 
-    const newChuDe: ChuDeItem = {
-      id: `CD_${Date.now()}`,
-      ten: 'Chủ đề từ thư viện GDPT 2018',
-      noiDung: selectedTopics.map((t, idx) => ({
-        id: `ND_${idx + 1}`,
-        ten: t.topicTitle,
-        trongSo: 1,
-        yccd: [
-          ...t.outcomes.know.map((k, i) => ({
-            ma: `ND_${idx + 1}.${i + 1}`,
-            noiDung: k,
-            mucToiDa: 'Biet' as const,
-          })),
-          ...t.outcomes.understand.map((u, i) => ({
-            ma: `ND_${idx + 1}.${t.outcomes.know.length + i + 1}`,
-            noiDung: u,
-            mucToiDa: 'Hieu' as const,
-          })),
-          ...t.outcomes.apply.map((a, i) => ({
-            ma: `ND_${idx + 1}.${t.outcomes.know.length + t.outcomes.understand.length + i + 1}`,
-            noiDung: a,
-            mucToiDa: 'VanDung' as const,
-          })),
-        ],
-      })),
-    };
+    const newChuDeList: ChuDeItem[] = selectedTopics.map((t, idx) => ({
+      id: `CD_${Date.now()}_${idx}`,
+      ten: t.chapter || `Chủ đề ${idx + 1}`,
+      noiDung: [
+        {
+          id: `ND_${Date.now()}_${idx}_1`,
+          ten: t.topicTitle,
+          trongSo: 1,
+          yccd: [
+            ...t.outcomes.know.map((k, i) => ({
+              ma: `ND_${idx + 1}.${i + 1}`,
+              noiDung: k,
+              mucToiDa: 'Biet' as const,
+            })),
+            ...t.outcomes.understand.map((u, i) => ({
+              ma: `ND_${idx + 1}.${t.outcomes.know.length + i + 1}`,
+              noiDung: u,
+              mucToiDa: 'Hieu' as const,
+            })),
+            ...t.outcomes.apply.map((a, i) => ({
+              ma: `ND_${idx + 1}.${t.outcomes.know.length + t.outcomes.understand.length + i + 1}`,
+              noiDung: a,
+              mucToiDa: 'VanDung' as const,
+            })),
+          ],
+        },
+      ],
+    }));
 
-    onChangeChuDeList([...chuDeList, newChuDe]);
-    toast.success(`Đã nạp ${selectedTopics.length} bài học từ Thư viện GDPT 2018 vào Ma trận!`);
+    // Generate formatted text lines to sync directly into Block 3 ("NỘI DUNG BÀI HỌC & YÊU CẦU CẦN ĐẠT")
+    const addedTopics = selectedTopics.map((t) => t.topicTitle).join('\n');
+    const addedChapters = selectedTopics.map((t) => t.chapter || 'Chương I').join('\n');
+    const addedOutcomes = selectedTopics
+      .map((t) => {
+        const kLines = t.outcomes.know.map((k) => `- (Biết) ${k}`).join('\n');
+        const uLines = t.outcomes.understand.map((u) => `- (Hiểu) ${u}`).join('\n');
+        const aLines = t.outcomes.apply.map((a) => `- (Vận dụng) ${a}`).join('\n');
+        return `[${t.topicTitle}]\n${kLines}\n${uLines}\n${aLines}`.trim();
+      })
+      .join('\n\n');
+
+    const updatedTopics = config.topicTitle ? `${config.topicTitle}\n${addedTopics}` : addedTopics;
+    const updatedChapters = config.chapter ? `${config.chapter}\n${addedChapters}` : addedChapters;
+    const updatedOutcomes = config.learningOutcomes ? `${config.learningOutcomes}\n\n${addedOutcomes}` : addedOutcomes;
+
+    onChangeChuDeList([...chuDeList, ...newChuDeList]);
+    onChangeConfig({
+      ...config,
+      topicTitle: updatedTopics,
+      chapter: updatedChapters,
+      knowledgeScope: updatedChapters,
+      learningOutcomes: updatedOutcomes,
+    });
+
+    toast.success(`Đã nạp ${selectedTopics.length} bài học từ Thư viện GDPT 2018 vào cả Ma trận & Khối Nội dung Bài học!`);
+  };
+
+  /**
+   * Syncs contents from "NGUỒN HỌC LIỆU & YCCĐ" directly into "NỘI DUNG BÀI HỌC & YÊU CẦU CẦN ĐẠT"
+   */
+  const handleSyncDocsToLessonFields = () => {
+    if (!config.uploadedDocs || config.uploadedDocs.length === 0) {
+      toast.info('Chưa có tài liệu đính kèm. Vui lòng tải file ở Thẻ 2 trước!');
+      return;
+    }
+
+    const fileContentStr = config.uploadedDocs.map((d) => d.content).join('\n\n');
+    const fileNamesStr = config.uploadedDocs.map((d) => d.name.replace(/\.[^/.]+$/, '')).join('\n');
+
+    let topicLines = config.topicTitle || '';
+    let chapterLines = config.chapter || '';
+    let outcomesLines = config.learningOutcomes || '';
+
+    if (chuDeList && chuDeList.length > 0) {
+      const topics: string[] = [];
+      const chapters: string[] = [];
+      const outcomes: string[] = [];
+
+      chuDeList.forEach((cd) => {
+        if (!chapters.includes(cd.ten)) chapters.push(cd.ten);
+        cd.noiDung.forEach((nd) => {
+          topics.push(nd.ten);
+          outcomes.push(`[${nd.ten}]`);
+          nd.yccd.forEach((y) => {
+            const levelLabel = y.mucToiDa === 'VanDung' ? 'Vận dụng' : y.mucToiDa === 'Hieu' ? 'Hiểu' : 'Biết';
+            const cleanContent = y.noiDung.replace(/^\[\?\]\s*/, '').replace(/\[\?\]\s*/g, '').trim();
+            outcomes.push(`- (${levelLabel}) ${cleanContent}`);
+          });
+          outcomes.push('');
+        });
+      });
+
+      topicLines = topics.join('\n');
+      chapterLines = chapters.join('\n');
+      outcomesLines = outcomes.join('\n').trim();
+    } else {
+      if (!topicLines) topicLines = fileNamesStr;
+      if (!chapterLines) chapterLines = 'Chương I';
+    }
+
+    onChangeConfig({
+      ...config,
+      topicTitle: topicLines,
+      chapter: chapterLines,
+      knowledgeScope: chapterLines,
+      learningOutcomes: outcomesLines,
+      readingPassage: fileContentStr || config.readingPassage || '',
+    });
+
+    toast.success('✨ Đã nạp thành công dữ liệu từ Nguồn học liệu & YCCĐ sang Nội dung Bài học!');
   };
 
   const [isDragging, setIsDragging] = useState(false);
@@ -191,9 +274,16 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       toast.error(`Không thể đọc được ${errors.length} file: ${errors.join(', ')}`);
     }
 
+    const fileTitles = newDocs.map((d) => d.name.replace(/\.[^/.]+$/, '')).join('\n');
+    const fullTextContent = newDocs.map((d) => d.content).join('\n\n');
+
     onChangeConfig({
       ...config,
       uploadedDocs: newDocs,
+      topicTitle: config.topicTitle ? `${config.topicTitle}\n${fileTitles}`.trim() : fileTitles,
+      chapter: config.chapter ? config.chapter : 'Chương I',
+      knowledgeScope: config.knowledgeScope ? config.knowledgeScope : 'Chương I',
+      readingPassage: fullTextContent || config.readingPassage || '',
     });
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -285,7 +375,22 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       onChangeChuDeList(result.chuDeList);
 
       const topicLines = result.chuDeList.flatMap((cd) => cd.noiDung.map((nd) => nd.ten)).join('\n');
-      const chapterLines = result.chuDeList.map((cd) => cd.ten).join('\n');
+      const chapterLines = Array.from(new Set(result.chuDeList.map((cd) => cd.ten))).join('\n');
+      
+      const structuredOutcomes = result.chuDeList
+        .flatMap((cd) =>
+          cd.noiDung.map((nd) => {
+            const yccdLines = nd.yccd
+              .map((y) => {
+                const levelLabel = y.mucToiDa === 'VanDung' ? 'Vận dụng' : y.mucToiDa === 'Hieu' ? 'Hiểu' : 'Biết';
+                const cleanContent = y.noiDung.replace(/^\[\?\]\s*/, '').replace(/\[\?\]\s*/g, '').trim();
+                return `- (${levelLabel}) ${cleanContent}`;
+              })
+              .join('\n');
+            return `[${nd.ten}]\n${yccdLines}`;
+          })
+        )
+        .join('\n\n');
 
       onChangeConfig({
         ...config,
@@ -296,11 +401,11 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         topicTitle: result.rawTopicsStr || topicLines,
         chapter: chapterLines || 'Chương I',
         knowledgeScope: chapterLines || 'Chương I',
-        learningOutcomes: result.rawOutcomesStr,
+        learningOutcomes: structuredOutcomes || result.rawOutcomesStr,
         readingPassage: result.readingPassageStr,
       });
 
-      toast.success(`Trích xuất thành công! Đã tự động điền đầy đủ vào "Nội dung bài học & YCCĐ".`);
+      toast.success(`🎉 Trích xuất thành công! Đã tự động nạp đầy đủ vào "Nội dung bài học & YCCĐ".`);
     } catch (err: any) {
       console.error('Analyze error:', err);
       toast.error(`Lỗi phân tích: ${err.message}`);
@@ -539,17 +644,30 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       <span>Đang trích xuất...</span>
                     </span>
                   ) : (
-                    config.uploadedDocs && config.uploadedDocs.length > 0 && (
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => handleAnalyzeDocs()}
-                        disabled={isAnalyzingLesson || uploading}
-                        className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-[11px] font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        onClick={handleSyncDocsToLessonFields}
+                        disabled={!config.uploadedDocs || config.uploadedDocs.length === 0}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[11px] font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                        title="Đồng bộ nạp dữ liệu từ file đính kèm sang Nội dung Bài học & YCCĐ"
                       >
-                        <Wand2 className="w-3 h-3" />
-                        <span>Phân tích AI</span>
+                        <Download className="w-3 h-3" />
+                        <span>Nạp vào Nội dung & YCCĐ</span>
                       </button>
-                    )
+
+                      {config.uploadedDocs && config.uploadedDocs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleAnalyzeDocs()}
+                          disabled={isAnalyzingLesson || uploading}
+                          className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-[11px] font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <Wand2 className="w-3 h-3" />
+                          <span>Phân tích AI</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -610,15 +728,15 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 truncate">
+                            <div className="flex items-start gap-2 min-w-0 flex-1 pr-2">
                               {isCurrentExtracting ? (
-                                <FileText className="w-4 h-4 text-purple-600 shrink-0" />
+                                <FileText className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
                               ) : isCompleted ? (
-                                <FileCheck2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <FileCheck2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                               ) : (
-                                <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <FileText className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                               )}
-                              <span className="font-extrabold text-slate-900 text-xs truncate max-w-[280px]">
+                              <span className="font-black text-slate-900 text-xs leading-normal break-words">
                                 {doc.name}
                               </span>
                             </div>
@@ -775,6 +893,17 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                     <span>Xóa toàn bộ nội dung bài cũ</span>
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={handleSyncDocsToLessonFields}
+                  disabled={!config.uploadedDocs || config.uploadedDocs.length === 0}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                  title="Nạp nội dung từ Nguồn học liệu & YCCĐ vào các ô bên dưới"
+                >
+                  <ArrowDownRight className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Nạp từ Nguồn học liệu ({config.uploadedDocs?.length || 0})</span>
+                </button>
 
                 <button
                   type="button"

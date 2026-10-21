@@ -91,11 +91,11 @@ THÔNG TIN ĐẦU VÀO:
 ${docs.map((d, i) => `File ${i + 1} (${d.name}): ${d.content.slice(0, 8000)}`).join('\n---\n')}
 
 RÀNG BUỘC NGHIÊM NGẶT SCHEMA JSON:
-1. "chuDe": Mảng danh sách các Chủ đề / Chương (1-30).
-2. "noiDung": Mỗi chủ đề có mảng các "Nội dung / đơn vị kiến thức" (1-30).
+1. "chuDe": Mảng danh sách các Chủ đề / Chương (1-30). GIỮ NGUYÊN VĂN 100% ĐẦY ĐỦ TÊN BÀI HỌC VÀ CHƯƠNG TỪ TÀI LIỆU, KHÔNG ĐƯỢC TÓM TẮT HOẶC CẮT BỚT.
+2. "noiDung": Mỗi chủ đề có mảng các "Nội dung / đơn vị kiến thức" (1-30). TÊN NỘI DUNG / BÀI HỌC PHẢI CHÍNH XÁC NGUYÊN VĂN ĐẦY ĐỦ GIỐNG HỆT TÊN TÀI LIỆU VÀ TÊN BÀI ĐƯỢC GỬI LÊN (VD: "BÀI 1 - KHÁI QUÁT VỀ CƠ KHÍ CHẾ TẠO"), TUYỆT ĐỐI KHÔNG RÚT GỌN HOẶC BỎ BỚT TỪ.
 3. "yccd": Mỗi Nội dung có danh sách các Yêu cầu cần đạt nguyên văn trích từ tài liệu. Mã YCCĐ đánh số theo nội dung (VD: ND1.1, ND1.2).
 4. Động từ hành vi ("dongTu") trích từ YCCĐ (kể tên, nêu, giải thích, vận dụng...).
-5. Nếu mục nào nghi ngờ là mục tiêu hoạt động/bài học chứ không phải YCCĐ khảo thí -> Thêm nhãn "[?]" ở đầu.
+5. TUYỆT ĐỐI KHÔNG CHÈN BẤT KỲ KÝ HIỆU LẠ HOẶC NHÃN NHƯ [?] VÀO ĐẦU HOẶC TRONG NỘI DUNG YCCĐ.
 6. Nếu nội dung nào hoàn toàn không có YCCĐ -> Trả về mảng yccd rỗng [].
 
 TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
@@ -140,13 +140,14 @@ TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
 
     const chuDeList: ChuDeItem[] = (parsed.chuDe || []).map((cd: any, cdIdx: number) => ({
       id: cd.id || `CD${cdIdx + 1}`,
-      ten: safeString(cd.ten) || `Chủ đề ${cdIdx + 1}`,
+      ten: safeString(cd.ten).replace(/^\[\?\]\s*/, '').replace(/\[\?\]\s*/g, '').trim() || `Chủ đề ${cdIdx + 1}`,
       noiDung: (cd.noiDung || []).map((nd: any, ndIdx: number) => {
         const ndId = nd.id || `ND${cdIdx + 1}_${ndIdx + 1}`;
         const rawYccd = Array.isArray(nd.yccd) ? nd.yccd : [];
 
         let yccdList: YccdItem[] = rawYccd.map((y: any, yIdx: number) => {
-          const text = safeString(y.noiDung || y);
+          const rawContent = safeString(y.noiDung || y);
+          const text = rawContent.replace(/^\[\?\]\s*/, '').replace(/\[\?\]\s*/g, '').trim();
           const verb = safeString(y.dongTu) || text.split(' ')[0] || '';
           const inferredLevel = inferMucToiDaFromVerb(verb, text);
 

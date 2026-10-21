@@ -7,68 +7,61 @@ interface OfficialExamHeaderProps {
 }
 
 export const OfficialExamHeader: React.FC<OfficialExamHeaderProps> = ({ config, activeCode }) => {
-  const department = (config.departmentName || 'SỞ GIÁO DỤC & ĐÀO TẠO TPHCM').toUpperCase();
-  const school = (config.schoolName || 'TRƯỜNG THPT VÕ TRƯỜNG TOẢN').toUpperCase();
-  const officialType = config.officialExamType || 'Đề chính thức';
-  const pageCount = config.pageCountText || '2';
+  const department = (config.departmentName || 'PHÒNG GD&ĐT HUYỆN LONG PHÚ').toUpperCase();
+  const school = (config.schoolName || 'TRƯỜNG THCS LONG PHÚ').toUpperCase();
 
-  const examTitle = (config.examTitle || 'ĐỀ KIỂM TRA CUỐI HỌC KÌ 1').toUpperCase();
-  const academicYear = config.academicYear || '2025 - 2026';
+  const examTitle = (config.examTitle || 'ĐỀ KIỂM TRA ĐỊNH KỲ GIỮA HỌC KỲ I').toUpperCase();
+  const academicYear = config.academicYear || '2026 - 2027';
   
-  const rawSubject = config.customSubject || config.subject || 'CÔNG NGHỆ ĐIỆN – ĐIỆN TỬ';
-  const gradeSuffix = config.grade ? ` ${config.grade}` : '';
+  const rawSubject = config.customSubject || config.subject || 'Khoa học tự nhiên';
+  const gradeSuffix = config.grade ? ` - LỚP ${config.grade}` : '';
   const subjectDisplay = rawSubject.toUpperCase();
 
   const duration = config.durationMinutes || 45;
-  const durationNote = config.durationNote || '(không kể thời gian phát đề)';
+  const durationNote = config.durationNote || '(Không kể phát đề)';
 
   return (
-    <div className="font-exam text-black leading-snug select-text pb-2 mb-4">
-      {/* 2-Column Header Table */}
-      <div className="grid grid-cols-12 gap-2 text-center items-start">
+    <div className="font-serif text-black leading-snug select-text pb-2 mb-3">
+      {/* 2-Column Header Grid */}
+      <div className="grid grid-cols-12 gap-2 text-center items-start border-b border-black pb-3">
         {/* Left Column */}
         <div className="col-span-5 space-y-0.5">
-          <div className="font-bold text-xs sm:text-sm uppercase">{department}</div>
-          <div className="font-bold text-xs sm:text-sm uppercase">{school}</div>
-          <div className="font-bold italic text-xs sm:text-sm pt-0.5">{officialType}</div>
-          <div className="italic text-[11px] sm:text-xs text-black">
-            (Đề có _{pageCount}_ trang)
+          <div className="font-bold text-xs sm:text-sm uppercase tracking-tight">{department}</div>
+          <div className="font-bold text-xs sm:text-sm uppercase tracking-tight">{school}</div>
+          <div className="font-bold text-xs sm:text-sm pt-1 uppercase">
+            MÃ ĐỀ: {activeCode || '101'}
           </div>
         </div>
 
         {/* Right Column */}
         <div className="col-span-7 space-y-0.5">
-          <div className="font-bold text-xs sm:text-sm uppercase">
-            {examTitle} NĂM HỌC {academicYear}
+          <div className="font-bold text-xs sm:text-sm uppercase tracking-tight">
+            {examTitle}
+          </div>
+          <div className="font-bold text-xs sm:text-sm uppercase tracking-tight">
+            NĂM HỌC {academicYear}
           </div>
           <div className="font-bold text-xs sm:text-sm uppercase pt-0.5">
-            MÔN: {subjectDisplay}{gradeSuffix}
+            Môn: {subjectDisplay}{gradeSuffix}
           </div>
-          <div className="italic text-xs sm:text-sm pt-0.5">
-            Thời gian làm bài: {duration} PHÚT
+          <div className="italic text-xs text-slate-800 pt-0.5">
+            Thời gian làm bài: {duration} phút <em>{durationNote}</em>
           </div>
-          <div className="italic text-[11px] sm:text-xs text-black">{durationNote}</div>
         </div>
       </div>
 
-      {/* Underlined Student Info Bar & Mã đề */}
-      <div className="mt-3 border-b-2 border-black pb-2 text-xs sm:text-sm font-exam flex flex-wrap items-baseline justify-between gap-y-1">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 overflow-hidden">
+      {/* Student Info Bar */}
+      <div className="mt-2.5 pt-1 text-xs sm:text-sm font-serif flex flex-wrap items-baseline justify-between gap-y-1">
+        <div className="w-full flex flex-wrap items-baseline justify-between">
           <span>
-            <strong>Họ và tên:</strong> ................................................................
+            <strong>Họ và tên học sinh:</strong> .........................................................................
           </span>
           <span>
-            <strong>LỚP:</strong> ...........
+            <strong>Lớp:</strong> ................
           </span>
           <span>
-            <strong>MS:</strong> ....................
+            <strong>Số báo danh:</strong> ................
           </span>
-          <span>
-            <strong>Số báo danh:</strong> ..............
-          </span>
-        </div>
-        <div className="font-bold text-sm sm:text-base whitespace-nowrap ml-auto pl-2">
-          Mã đề {activeCode || '111'}
         </div>
       </div>
     </div>
