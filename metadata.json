@@ -1,0 +1,8 @@
+{
+  "name": "Ra Đề Kiểm Tra AI - 3 Cấp GDPT 2018",
+  "description": "Hệ thống ra đề kiểm tra theo định hướng Chương trình GDPT 2018 cho cả 3 cấp Tiểu học, THCS và THPT với đầy đủ Ma trận, Bản đặc tả, Đáp án, Hướng dẫn chấm và Đảo mã đề thông minh.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
