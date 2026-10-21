@@ -43,6 +43,9 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
   );
   const [duration, setDuration] = useState<number>(config.durationMinutes || 45);
   const [showUnitConfig, setShowUnitConfig] = useState<boolean>(false);
+  const [manualPageInput, setManualPageInput] = useState<string>(
+    config.manualPageCount !== undefined ? String(config.manualPageCount) : ''
+  );
 
   // Apply answer balancing if option is ON
   const activeQuestions = balanceAnswers ? balanceMcqAnswerKeys(questions) : questions;
@@ -67,6 +70,23 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
   const hasP3 = p3Questions.length > 0;
   const hasP4 = p4Questions.length > 0;
 
+  // Compute Part 1 page count n
+  const calcPart1Pages = (): number => {
+    if (manualPageInput.trim() !== '') {
+      const parsed = parseInt(manualPageInput, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    const load = 0.25 + 
+      (p1Questions.length * 0.08) + 
+      (p2Questions.length * 0.28) + 
+      (p3Questions.length * 0.12) + 
+      (p4Questions.length * 0.25);
+    return Math.max(1, Math.ceil(load));
+  };
+
+  const displayPageCount = calcPart1Pages();
+  const isEstimate = manualPageInput.trim() === '';
+
   let sectionRomanIndex = 1;
   const toRoman = (n: number) => ['I', 'II', 'III', 'IV', 'V'][n - 1] || `${n}`;
 
@@ -87,6 +107,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
     durationMinutes: duration,
     pageSize,
     balanceAnswersOption: balanceAnswers,
+    manualPageCount: manualPageInput.trim() !== '' ? parseInt(manualPageInput, 10) : undefined,
   });
 
   const handleDownloadDocx = () => {
@@ -254,7 +275,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
               </div>
             </div>
 
-            <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center justify-between pt-1 gap-3 border-t border-indigo-200/60">
+            <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center justify-between pt-2 gap-3 border-t border-indigo-200/60">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -263,22 +284,44 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                   className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-slate-300"
                 />
                 <span className="font-bold text-indigo-950">
-                  Hiển thị dòng &quot;(ĐỀ CHÍNH THỨC)&quot; ở góc trái đề
+                  Hiển thị dòng &quot;ĐỀ CHÍNH THỨC&quot; ở góc trái đề
                 </span>
               </label>
 
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-700">Thời gian làm bài:</span>
-                <input
-                  type="number"
-                  min="15"
-                  max="180"
-                  step="5"
-                  value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value) || 45)}
-                  className="w-20 rounded-md border border-slate-300 bg-white px-2 py-1 font-bold text-center text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-                <span className="font-semibold text-slate-600">phút</span>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-700 flex items-center gap-1">
+                    <span>Số trang đề (Phần 1):</span>
+                    {isEstimate && (
+                      <span className="text-[10px] text-amber-800 font-normal italic bg-amber-100/80 px-1.5 py-0.5 rounded border border-amber-300/80">
+                        (ước tính)
+                      </span>
+                    )}
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    placeholder={`${displayPageCount}`}
+                    value={manualPageInput}
+                    onChange={(e) => setManualPageInput(e.target.value)}
+                    className="w-16 rounded-md border border-slate-300 bg-white px-2 py-1 font-bold text-center text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-700">Thời gian làm bài:</span>
+                  <input
+                    type="number"
+                    min="15"
+                    max="180"
+                    step="5"
+                    value={duration}
+                    onChange={(e) => setDuration(Number(e.target.value) || 45)}
+                    className="w-20 rounded-md border border-slate-300 bg-white px-2 py-1 font-bold text-center text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                  <span className="font-semibold text-slate-600">phút</span>
+                </div>
               </div>
             </div>
           </div>
@@ -300,7 +343,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
             }}
           >
             {/* 3. KHỐI ĐẦU ĐỀ (Table 1 row x 2 columns) */}
-            <div className="w-full border-b border-[#787878] pb-2 mb-3">
+            <div className="w-full border-b border-[#787878] pb-1.5 mb-2">
               <table className="w-full text-center border-collapse">
                 <tbody>
                   <tr>
@@ -308,17 +351,17 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                       <div className="font-bold text-[10pt] uppercase">{department}</div>
                       <div className="font-bold text-[11pt] uppercase">{school}</div>
                       {showOfficial && (
-                        <div className="font-bold text-[9.5pt] uppercase pt-0.5 tracking-wide">(ĐỀ CHÍNH THỨC)</div>
+                        <div className="font-bold text-[10pt] uppercase pt-0.5 tracking-wide">ĐỀ CHÍNH THỨC</div>
                       )}
-                      <div className="font-bold text-[10pt] uppercase pt-1">MÃ ĐỀ: {examCode}</div>
+                      <div className="italic text-[10pt] pt-0.5">(Đề có {displayPageCount} trang)</div>
                     </td>
                     <td className="w-1/2 align-top text-center pl-2">
                       <div className="font-bold text-[11pt] uppercase">{examTitle}</div>
-                      <div className="font-bold text-[10pt] uppercase">NĂM HỌC {academicYear}</div>
+                      <div className="font-bold text-[11pt] uppercase">NĂM HỌC {academicYear}</div>
                       <div className="font-bold text-[11pt] uppercase pt-0.5">
                         Môn: {subjectUpper} - {gradeStr}
                       </div>
-                      <div className="italic text-[9.5pt] pt-0.5">
+                      <div className="italic text-[9.5pt] pt-0.5 font-normal">
                         Thời gian làm bài: {duration} phút (Không kể phát đề)
                       </div>
                     </td>
@@ -329,7 +372,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
 
             {/* 4. STUDENT INFO LINE */}
             <div className="mb-4 text-[10pt] italic">
-              Họ và tên học sinh: ......................................................................... Lớp: ................ Số báo danh: ................
+              Họ và tên học sinh: .................................................... Lớp: ................ Số báo danh: ................ Mã đề: {examCode && examCode.trim() ? examCode.trim() : '.........'}
             </div>
 
             {/* 5. TIÊU ĐỀ PHẦN 1 */}
@@ -393,12 +436,12 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                   {p2Roman}. PHẦN TRẮC NGHIỆM ĐÚNG / SAI ({fmtScore(p2Score)} điểm)
                 </div>
                 <div className="italic text-[10pt] text-slate-800">
-                  Thí sinh trả lời từ Câu {p1Questions.length + 1} đến Câu {p1Questions.length + p2Questions.length}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.
+                  Thí sinh trả lời từ Câu 1 đến Câu {p2Questions.length}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.
                 </div>
 
                 <div className="space-y-3 pl-1">
                   {p2Questions.map((q, idx) => {
-                    const qNum = p1Questions.length + idx + 1;
+                    const qNum = idx + 1;
                     const subs = q.subItems && q.subItems.length > 0 ? q.subItems : [
                       { id: '1', label: 'a' as const, statement: '', isCorrect: true },
                       { id: '2', label: 'b' as const, statement: '', isCorrect: false },
@@ -427,7 +470,33 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
               </div>
             )}
 
-            {/* 6 & 9. SECTION III: TỰ LUẬN */}
+            {/* SECTION III: TRẮC NGHIỆM TRẢ LỜI NGẮN */}
+            {hasP3 && (
+              <div className="space-y-3 mb-4 pt-2">
+                <div className="font-bold text-[11pt]">
+                  {p3Roman}. PHẦN TRẮC NGHIỆM TRẢ LỜI NGẮN ({fmtScore(p3Score)} điểm)
+                </div>
+                <div className="italic text-[10pt] text-slate-800">
+                  Thí sinh trả lời từ Câu 1 đến Câu {p3Questions.length}.
+                </div>
+
+                <div className="space-y-3 pl-1">
+                  {p3Questions.map((q, idx) => {
+                    const qNum = idx + 1;
+                    return (
+                      <div key={q.id || idx} className="space-y-1">
+                        <p className="font-serif">
+                          <strong className="font-bold">Câu {qNum}. </strong>
+                          <MathRenderer text={q.question} />
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* SECTION IV: TỰ LUẬN */}
             {hasP4 && (
               <div className="space-y-3 mb-4 pt-2">
                 <div className="font-bold text-[11pt]">
@@ -436,7 +505,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
 
                 <div className="space-y-3 pl-1">
                   {p4Questions.map((q, idx) => {
-                    const qNum = p1Questions.length + p2Questions.length + p3Questions.length + idx + 1;
+                    const qNum = idx + 1;
                     return (
                       <div key={q.id || idx} className="space-y-1">
                         <p className="font-serif">
@@ -535,7 +604,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                     </thead>
                     <tbody>
                       {p2Questions.map((q, idx) => {
-                        const qNumStr = `Câu ${p1Questions.length + idx + 1}`;
+                        const qNumStr = `Câu ${idx + 1}`;
                         const qScoreStr = `(${fmtScore(q.score || 1.0)} điểm)`;
                         const subs = q.subItems && q.subItems.length > 0 ? q.subItems : [
                           { id: '1', label: 'a' as const, statement: '', isCorrect: true },
@@ -567,6 +636,38 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                 </div>
               )}
 
+              {/* ĐÁP ÁN TRẮC NGHIỆM TRẢ LỜI NGẮN */}
+              {hasP3 && (
+                <div className="space-y-2 mb-6">
+                  <div className="font-bold text-[11pt]">
+                    {p3Roman}. ĐÁP ÁN PHẦN TRẮC NGHIỆM TRẢ LỜI NGẮN ({fmtScore(p3Score)} điểm)
+                  </div>
+                  <table className="w-full border-collapse border border-[#CCCCCC] text-[11pt] mt-2">
+                    <thead>
+                      <tr className="bg-[#D6EAF8] font-bold text-center">
+                        <th className="p-1.5 border border-[#CCCCCC] w-[18%]">Câu hỏi</th>
+                        <th className="p-1.5 border border-[#CCCCCC] w-[28%]">Đáp án chính xác</th>
+                        <th className="p-1.5 border border-[#CCCCCC] w-[54%]">Hướng dẫn phương pháp</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {p3Questions.map((q, idx) => {
+                        const qNum = idx + 1;
+                        return (
+                          <tr key={idx} className="border-b border-[#CCCCCC]">
+                            <td className="p-1.5 border border-[#CCCCCC] text-center font-bold">Câu {qNum}</td>
+                            <td className="p-1.5 border border-[#CCCCCC] text-center font-bold">{String(q.correctAnswer || '.........')}</td>
+                            <td className="p-1.5 border border-[#CCCCCC] text-left">
+                              <MathRenderer text={q.explanation || 'Tính toán theo công thức cốt lõi.'} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               {/* 12. ĐÁP ÁN TỰ LUẬN */}
               {hasP4 && (
                 <div className="space-y-3 mb-6">
@@ -575,7 +676,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                   </div>
 
                   {p4Questions.map((q, idx) => {
-                    const qNum = p1Questions.length + p2Questions.length + p3Questions.length + idx + 1;
+                    const qNum = idx + 1;
                     const qScore = q.score || 1.0;
                     const rubric = q.rubric && q.rubric.length > 0 ? q.rubric : [
                       { step: '1', point: qScore * 0.25, detail: q.explanation || 'Nêu đúng định nghĩa / ý chính câu hỏi.' },

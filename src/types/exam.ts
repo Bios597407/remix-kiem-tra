@@ -274,6 +274,7 @@ export interface ExamConfig {
   appUiScale?: 'compact' | 'standard' | 'relaxed';
   pageSize?: 'A4' | 'Letter';
   balanceAnswersOption?: boolean;
+  manualPageCount?: number | string;
 }
 
 export interface GradeTabState {

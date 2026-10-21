@@ -1652,9 +1652,9 @@ export function buildStandardFormDocx(
         spacing: { after: 10 },
         children: [
           new TextRun({
-            text: '(ĐỀ CHÍNH THỨC)',
+            text: 'ĐỀ CHÍNH THỨC',
             font: FONT_FAMILY,
-            size: 19, // 9.5 pt
+            size: 20, // 10 pt
             bold: true,
             color: '000000',
           }),
@@ -1663,16 +1663,29 @@ export function buildStandardFormDocx(
     );
   }
 
+  // Calculate Part 1 page count n
+  let nPages = 1;
+  if (config.manualPageCount !== undefined && !isNaN(Number(config.manualPageCount)) && Number(config.manualPageCount) > 0) {
+    nPages = Number(config.manualPageCount);
+  } else {
+    const load = 0.25 + 
+      (p1Questions.length * 0.08) + 
+      (p2Questions.length * 0.28) + 
+      (p3Questions.length * 0.12) + 
+      (p4Questions.length * 0.25);
+    nPages = Math.max(1, Math.ceil(load));
+  }
+
   leftCellParagraphs.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 20 },
       children: [
         new TextRun({
-          text: `MÃ ĐỀ: ${examCode}`,
+          text: `(Đề có ${nPages} trang)`,
           font: FONT_FAMILY,
           size: 20, // 10 pt
-          bold: true,
+          italics: true,
           color: '000000',
         }),
       ],
@@ -1700,7 +1713,7 @@ export function buildStandardFormDocx(
         new TextRun({
           text: `NĂM HỌC ${academicYear}`,
           font: FONT_FAMILY,
-          size: 20, // 10 pt
+          size: 22, // 11 pt
           bold: true,
           color: '000000',
         }),
@@ -1758,6 +1771,7 @@ export function buildStandardFormDocx(
   children.push(headerTable);
 
   // 4. DIVIDER LINE & STUDENT INFO
+  const codeDisplay = examCode && examCode.trim() ? examCode.trim() : '.........';
   children.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -1776,7 +1790,7 @@ export function buildStandardFormDocx(
       spacing: { after: 120 }, // after 6pt
       children: [
         new TextRun({
-          text: 'Họ và tên học sinh: ......................................................................... Lớp: ................ Số báo danh: ................',
+          text: `Họ và tên học sinh: .................................................... Lớp: ................ Số báo danh: ................ Mã đề: ${codeDisplay}`,
           font: FONT_FAMILY,
           size: 20, // 10 pt
           italics: true,
@@ -1964,7 +1978,7 @@ export function buildStandardFormDocx(
 
   // 6 & 8. SECTION II: TRẮC NGHIỆM ĐÚNG / SAI
   if (hasP2) {
-    const endCount = questionCounter + p2Questions.length - 1;
+    const endCount = p2Questions.length;
     children.push(
       new Paragraph({
         spacing: { before: 160, after: 80 }, // before 8pt, after 4pt
@@ -1984,7 +1998,7 @@ export function buildStandardFormDocx(
         keepNext: true,
         children: [
           new TextRun({
-            text: `Thí sinh trả lời từ Câu ${questionCounter} đến Câu ${endCount}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.`,
+            text: `Thí sinh trả lời từ Câu 1 đến Câu ${endCount}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.`,
             font: FONT_FAMILY,
             size: 20, // 10 pt
             italics: true,
@@ -1994,8 +2008,9 @@ export function buildStandardFormDocx(
       })
     );
 
+    let p2ExamCounter = 1;
     for (const q of p2Questions) {
-      const qNum = questionCounter++;
+      const qNum = p2ExamCounter++;
       const cleanedQuestion = formatLatexToUnicode(q.question);
 
       children.push(
@@ -2037,7 +2052,67 @@ export function buildStandardFormDocx(
     }
   }
 
-  // 6 & 9. SECTION III: TỰ LUẬN
+  // SECTION III: TRẮC NGHIỆM TRẢ LỜI NGẮN
+  if (hasP3) {
+    const endCount = p3Questions.length;
+    children.push(
+      new Paragraph({
+        spacing: { before: 160, after: 80 },
+        keepNext: true,
+        children: [
+          new TextRun({
+            text: `${p3Roman}. PHẦN TRẮC NGHIỆM TRẢ LỜI NGẮN (${fmtScore(p3Score)} điểm)`,
+            font: FONT_FAMILY,
+            size: 22,
+            bold: true,
+            color: '000000',
+          }),
+        ],
+      }),
+      new Paragraph({
+        spacing: { after: 80 },
+        keepNext: true,
+        children: [
+          new TextRun({
+            text: `Thí sinh trả lời từ Câu 1 đến Câu ${endCount}.`,
+            font: FONT_FAMILY,
+            size: 20,
+            italics: true,
+            color: '000000',
+          }),
+        ],
+      })
+    );
+
+    let p3ExamCounter = 1;
+    for (const q of p3Questions) {
+      const qNum = p3ExamCounter++;
+      const cleanedQuestion = formatLatexToUnicode(q.question);
+
+      children.push(
+        new Paragraph({
+          spacing: { before: 80, after: 40 },
+          children: [
+            new TextRun({
+              text: `Câu ${qNum}. `,
+              font: FONT_FAMILY,
+              size: 22,
+              bold: true,
+              color: '000000',
+            }),
+            new TextRun({
+              text: cleanedQuestion,
+              font: FONT_FAMILY,
+              size: 22,
+              color: '000000',
+            }),
+          ],
+        })
+      );
+    }
+  }
+
+  // SECTION IV: TỰ LUẬN
   if (hasP4) {
     children.push(
       new Paragraph({
@@ -2055,8 +2130,9 @@ export function buildStandardFormDocx(
       })
     );
 
+    let p4ExamCounter = 1;
     for (const q of p4Questions) {
-      const qNum = questionCounter++;
+      const qNum = p4ExamCounter++;
       const qScore = q.score || 1.0;
       const cleanedQuestion = formatLatexToUnicode(q.question);
 
@@ -2372,7 +2448,7 @@ export function buildStandardFormDocx(
       });
 
       const tfRows: TableRow[] = [tfHeaderRow];
-      let p2Counter = (p1Questions.length || 0) + 1;
+      let p2Counter = 1;
 
       p2Questions.forEach((q) => {
         const qNumStr = `Câu ${p2Counter++}`;
@@ -2453,6 +2529,120 @@ export function buildStandardFormDocx(
       );
     }
 
+    // ĐÁP ÁN PHẦN TRẮC NGHIỆM TRẢ LỜI NGẮN
+    if (hasP3) {
+      children.push(
+        new Paragraph({
+          spacing: { before: 160, after: 80 },
+          keepNext: true,
+          children: [
+            new TextRun({
+              text: `${p3Roman}. ĐÁP ÁN PHẦN TRẮC NGHIỆM TRẢ LỜI NGẮN (${fmtScore(p3Score)} điểm)`,
+              font: FONT_FAMILY,
+              size: 22,
+              bold: true,
+              color: '000000',
+            }),
+          ],
+        })
+      );
+
+      const col1W_p3 = Math.floor(contentW_dxa * 0.18);
+      const col2W_p3 = Math.floor(contentW_dxa * 0.28);
+      const col3W_p3 = contentW_dxa - col1W_p3 - col2W_p3;
+
+      const saHeaderRow = new TableRow({
+        tableHeader: true,
+        children: [
+          new TableCell({
+            width: { size: col1W_p3, type: WidthType.DXA },
+            shading: { fill: 'D6EAF8' },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new TextRun({ text: 'Câu hỏi', font: FONT_FAMILY, size: 22, bold: true })],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: col2W_p3, type: WidthType.DXA },
+            shading: { fill: 'D6EAF8' },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new TextRun({ text: 'Đáp án chính xác', font: FONT_FAMILY, size: 22, bold: true })],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: col3W_p3, type: WidthType.DXA },
+            shading: { fill: 'D6EAF8' },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new TextRun({ text: 'Hướng dẫn phương pháp', font: FONT_FAMILY, size: 22, bold: true })],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const saRows: TableRow[] = [saHeaderRow];
+      let p3AnsCounter = 1;
+
+      p3Questions.forEach((q) => {
+        const qNumStr = `Câu ${p3AnsCounter++}`;
+        const ansStr = String(q.correctAnswer || '.........');
+        saRows.push(
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: col1W_p3, type: WidthType.DXA },
+                verticalAlign: VerticalAlign.CENTER,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: qNumStr, font: FONT_FAMILY, size: 22, bold: true })],
+                  }),
+                ],
+              }),
+              new TableCell({
+                width: { size: col2W_p3, type: WidthType.DXA },
+                verticalAlign: VerticalAlign.CENTER,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: ansStr, font: FONT_FAMILY, size: 22, bold: true })],
+                  }),
+                ],
+              }),
+              new TableCell({
+                width: { size: col3W_p3, type: WidthType.DXA },
+                verticalAlign: VerticalAlign.CENTER,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.LEFT,
+                    children: [new TextRun({ text: formatLatexToUnicode(q.explanation || 'Tính toán theo công thức cốt lõi.'), font: FONT_FAMILY, size: 22 })],
+                  }),
+                ],
+              }),
+            ],
+          })
+        );
+      });
+
+      children.push(
+        new Table({
+          width: { size: contentW_dxa, type: WidthType.DXA },
+          borders: SPEC_TABLE_BORDERS,
+          rows: saRows,
+        })
+      );
+    }
+
     // 12. ĐÁP ÁN VÀ THANG ĐIỂM PHẦN TỰ LUẬN
     if (hasP4) {
       children.push(
@@ -2471,7 +2661,7 @@ export function buildStandardFormDocx(
         })
       );
 
-      let p4Counter = (p1Questions.length || 0) + (p2Questions.length || 0) + (p3Questions.length || 0) + 1;
+      let p4Counter = 1;
       const colLeftW = Math.floor(contentW_dxa * 0.82); // 82%
       const colRightW = contentW_dxa - colLeftW; // 18%
 
