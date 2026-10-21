@@ -31,11 +31,14 @@ export const InteractiveMatrixDashboard: React.FC<InteractiveMatrixDashboardProp
   const [activeTab, setActiveTab] = useState<'matrix' | 'spec' | 'cau' | 'audit'>('matrix');
   const [showTestModal, setShowTestModal] = useState(false);
 
-  const auditReport = runCv7991Audit(chuDeList, cauList, luat, { grade, subject });
+  const safeChuDeList = Array.isArray(chuDeList) ? chuDeList : [];
+  const safeCauList = Array.isArray(cauList) ? cauList : [];
+
+  const auditReport = runCv7991Audit(safeChuDeList, safeCauList, luat, { grade, subject });
 
   const handleUpdateCauItem = (index: number, field: keyof CauItem, value: any) => {
     if (!onUpdateCauList) return;
-    const updated = [...cauList];
+    const updated = [...safeCauList];
     updated[index] = { ...updated[index], [field]: value };
     onUpdateCauList(updated);
   };

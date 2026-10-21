@@ -88,6 +88,20 @@ const DEFAULT_CONFIG: ExamConfig = {
   },
 };
 
+const createDefaultTabState = (grade: string): GradeTabState => ({
+  grade,
+  subject: 'Toán học',
+  textbook: 'Kết nối tri thức với cuộc sống',
+  examTitle: 'ĐỀ KIỂM TRA GIỮA HỌC KỲ I',
+  durationMinutes: 90,
+  chuDeList: [],
+  luat: DEFAULT_LUAT,
+  nangLucList: [],
+  cauList: [],
+  uploadedDocs: [],
+  generatedQuestions: [],
+});
+
 export default function App() {
   // Global Model Cache Cleaning
   useEffect(() => {
@@ -101,38 +115,15 @@ export default function App() {
 
   // Grade Tab States Map
   const [tabStates, setTabStates] = useState<Record<string, GradeTabState>>({
-    '12': {
-      grade: '12',
-      subject: 'Toán học',
-      textbook: 'Kết nối tri thức với cuộc sống',
-      examTitle: 'ĐỀ KIỂM TRA GIỮA HỌC KỲ I',
-      durationMinutes: 90,
-      chuDeList: [], // Initial state: ALL TABLES ARE EMPTY!
-      luat: DEFAULT_LUAT,
-      nangLucList: [],
-      cauList: [],
-      uploadedDocs: [],
-      generatedQuestions: [],
-    },
+    '12': createDefaultTabState('12'),
   });
 
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem(STORAGE_KEY_API_KEY) || (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
   });
 
-  // Get active tab state
-  const currentTabState = tabStates[activeGrade] || {
-    grade: activeGrade,
-    subject: 'Toán học',
-    textbook: 'Kết nối tri thức với cuộc sống',
-    examTitle: 'ĐỀ KIỂM TRA GIỮA HỌC KỲ I',
-    durationMinutes: 90,
-    chuDeList: [],
-    luat: DEFAULT_LUAT,
-    nangLucList: [],
-    uploadedDocs: [],
-    generatedQuestions: [],
-  };
+  // Get active tab state with guaranteed safe fallbacks
+  const currentTabState = tabStates[activeGrade] || createDefaultTabState(activeGrade);
 
   // Construct active ExamConfig
   const config: ExamConfig = useMemo(() => {
@@ -150,14 +141,14 @@ export default function App() {
       knowledgeScope: currentTabState.knowledgeScope,
       learningOutcomes: currentTabState.learningOutcomes,
       readingPassage: currentTabState.readingPassage,
-      luat: currentTabState.luat,
-      nangLuc: currentTabState.nangLucList,
-      uploadedDocs: currentTabState.uploadedDocs,
+      luat: currentTabState.luat || DEFAULT_LUAT,
+      nangLuc: currentTabState.nangLucList || [],
+      uploadedDocs: currentTabState.uploadedDocs || [],
       sectionCounts: {
-        part1: currentTabState.luat.nlcCount,
-        part2: currentTabState.luat.dsCount,
-        part3: currentTabState.luat.tlnCount,
-        part4: currentTabState.luat.tlCount,
+        part1: currentTabState.luat?.nlcCount ?? 12,
+        part2: currentTabState.luat?.dsCount ?? 4,
+        part3: currentTabState.luat?.tlnCount ?? 0,
+        part4: currentTabState.luat?.tlCount ?? 3,
       },
     };
   }, [gradeLevel, activeGrade, currentTabState]);
@@ -170,28 +161,29 @@ export default function App() {
 
   // Handle Tab Switch
   const handleSelectTab = (grade: string) => {
-    if (!tabStates[grade]) {
-      setTabStates((prev) => ({
-        ...prev,
-        [grade]: {
-          grade,
-          subject: 'Toán học',
-          textbook: 'Kết nối tri thức với cuộc sống',
-          examTitle: 'ĐỀ KIỂM TRA GIỮA HỌC KỲ I',
-          durationMinutes: 90,
-          chuDeList: [],
-          luat: DEFAULT_LUAT,
-          nangLucList: [],
-          cauList: [],
-          uploadedDocs: [],
-          generatedQuestions: [],
-        },
-      }));
-    }
+    setTabStates((prev) => {
+      if (!prev[grade]) {
+        return {
+          ...prev,
+          [grade]: createDefaultTabState(grade),
+        };
+      }
+      return prev;
+    });
+    setActiveGrade(grade);
   };
 
   const handleAddTab = (grade: string) => {
     if (!activeTabs.includes(grade)) {
+      setTabStates((prev) => {
+        if (!prev[grade]) {
+          return {
+            ...prev,
+            [grade]: createDefaultTabState(grade),
+          };
+        }
+        return prev;
+      });
       setActiveTabs([...activeTabs, grade]);
       handleSelectTab(grade);
     }
@@ -209,25 +201,35 @@ export default function App() {
   const handleSelectGradeLevel = (level: GradeLevel) => {
     setGradeLevel(level);
     const newGrades = level === 'THPT' ? ['12', '11', '10'] : ['9', '8', '7'];
-    setActiveTabs([newGrades[0]]);
-    setActiveGrade(newGrades[0]);
+    const firstGrade = newGrades[0];
+    setTabStates((prev) => {
+      if (!prev[firstGrade]) {
+        return {
+          ...prev,
+          [firstGrade]: createDefaultTabState(firstGrade),
+        };
+      }
+      return prev;
+    });
+    setActiveTabs([firstGrade]);
+    setActiveGrade(firstGrade);
   };
 
   // Update current tab state
   const updateCurrentTabState = (updater: (prev: GradeTabState) => GradeTabState) => {
     setTabStates((prev) => ({
       ...prev,
-      [activeGrade]: updater(prev[activeGrade] || currentTabState),
+      [activeGrade]: updater(prev[activeGrade] || createDefaultTabState(activeGrade)),
     }));
   };
 
   // Auto-generate or update "cau" allocation when chuDeList or luat changes
   useEffect(() => {
     if (currentTabState.chuDeList && currentTabState.chuDeList.length > 0) {
-      const alloc = generateCauAllocation(currentTabState.chuDeList, currentTabState.luat);
+      const alloc = generateCauAllocation(currentTabState.chuDeList, currentTabState.luat || DEFAULT_LUAT);
       updateCurrentTabState((prev) => ({
         ...prev,
-        cauList: alloc.cauList,
+        cauList: alloc.cauList || [],
         unsolvableReason: alloc.unsolvableReason,
       }));
     }
@@ -235,11 +237,16 @@ export default function App() {
 
   // Audit Report for current active tab
   const auditReport = useMemo(() => {
-    return runCv7991Audit(currentTabState.chuDeList, currentTabState.cauList, currentTabState.luat, {
-      grade: activeGrade,
-      subject: currentTabState.subject,
-    });
-  }, [currentTabState.chuDeList, currentTabState.cauList, currentTabState.luat, activeGrade, currentTabState.subject]);
+    return runCv7991Audit(
+      currentTabState?.chuDeList || [],
+      currentTabState?.cauList || [],
+      currentTabState?.luat || DEFAULT_LUAT,
+      {
+        grade: activeGrade || '',
+        subject: currentTabState?.subject || '',
+      }
+    );
+  }, [currentTabState?.chuDeList, currentTabState?.cauList, currentTabState?.luat, activeGrade, currentTabState?.subject]);
 
   // Generation progress state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -402,11 +409,11 @@ export default function App() {
           <section id="workspace-section" className="w-full">
             <Workspace
               config={config}
-              chuDeList={currentTabState.chuDeList}
-              cauList={currentTabState.cauList}
-              luat={currentTabState.luat}
-              nangLucList={currentTabState.nangLucList}
-              questions={currentTabState.generatedQuestions}
+              chuDeList={currentTabState.chuDeList || []}
+              cauList={currentTabState.cauList || []}
+              luat={currentTabState.luat || DEFAULT_LUAT}
+              nangLucList={currentTabState.nangLucList || []}
+              questions={currentTabState.generatedQuestions || []}
               activeTab={workspaceTab}
               onTabChange={setWorkspaceTab}
               onUpdateCauList={(updated) => {

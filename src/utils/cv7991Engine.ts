@@ -178,9 +178,13 @@ export function getAllNoiDungList(chuDeList: ChuDeItem[]): Array<{
   noiDung: NoiDungItem;
 }> {
   const list: Array<{ chuDeId: string; chuDeTen: string; noiDung: NoiDungItem }> = [];
+  if (!Array.isArray(chuDeList)) return list;
   chuDeList.forEach((cd) => {
+    if (!cd || !Array.isArray(cd.noiDung)) return;
     cd.noiDung.forEach((nd) => {
-      list.push({ chuDeId: cd.id, chuDeTen: cd.ten, noiDung: nd });
+      if (nd) {
+        list.push({ chuDeId: cd.id, chuDeTen: cd.ten, noiDung: nd });
+      }
     });
   });
   return list;
@@ -190,10 +194,13 @@ export function getAllNoiDungList(chuDeList: ChuDeItem[]): Array<{
  * Checks available cognitive levels for a specific content item based on its YCCĐs
  */
 export function getAvailableLevelsForNoiDung(noiDung: NoiDungItem): Record<CognitiveLevel, boolean> {
-  const validYccd = noiDung.yccd.filter((y) => !y.noiDung.includes('THIẾU YCCĐ'));
-  const hasBiet = validYccd.some((y) => y.mucToiDa === 'Biet' || y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung');
-  const hasHieu = validYccd.some((y) => y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung');
-  const hasVanDung = validYccd.some((y) => y.mucToiDa === 'VanDung');
+  if (!noiDung || !Array.isArray(noiDung.yccd)) {
+    return { Biet: false, Hieu: false, VanDung: false };
+  }
+  const validYccd = noiDung.yccd.filter((y) => y && !y.noiDung?.includes('THIẾU YCCĐ'));
+  const hasBiet = validYccd.some((y) => y && (y.mucToiDa === 'Biet' || y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung'));
+  const hasHieu = validYccd.some((y) => y && (y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung'));
+  const hasVanDung = validYccd.some((y) => y && y.mucToiDa === 'VanDung');
 
   return {
     Biet: hasBiet,
@@ -658,15 +665,18 @@ export interface UnifiedTableData {
  * and bottom row totals for BOTH Matrix and Specification tables directly from the "cau" table!
  */
 export function getUnifiedMatrixSpecData(
-  chuDeList: ChuDeItem[],
-  cauList: CauItem[],
-  luat: LuatConfig,
+  chuDeListInput: ChuDeItem[] = [],
+  cauListInput: CauItem[] = [],
+  luatInput?: LuatConfig,
   options: {
     showTln?: boolean;
     activeCompetencies?: NangLucItem[];
   } = {}
 ): UnifiedTableData {
-  const showTln = options.showTln !== undefined ? options.showTln : luat.tlnCount > 0 || !!luat.showTlnColumnsIfZero;
+  const chuDeList = Array.isArray(chuDeListInput) ? chuDeListInput : [];
+  const cauList = Array.isArray(cauListInput) ? cauListInput : [];
+  const luat = luatInput || PRESETS['3-4-3'].luat;
+  const showTln = options.showTln !== undefined ? options.showTln : ((luat.tlnCount || 0) > 0 || !!luat.showTlnColumnsIfZero);
 
   const allNoiDung = getAllNoiDungList(chuDeList);
 

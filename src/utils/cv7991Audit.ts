@@ -7,17 +7,22 @@ import {
   QuestionType,
   CognitiveLevel,
 } from '../types/exam';
-import { getUnifiedMatrixSpecData, getAllNoiDungList, getAvailableLevelsForNoiDung } from './cv7991Engine';
+import { getUnifiedMatrixSpecData, getAllNoiDungList, getAvailableLevelsForNoiDung, PRESETS } from './cv7991Engine';
 
 /**
  * Executes the 15 internal audit checks (K1 - K15) based on the "cau" table, "luat", and content list
  */
 export function runCv7991Audit(
-  chuDeList: ChuDeItem[],
-  cauList: CauItem[],
-  luat: LuatConfig,
-  contextInfo: { grade: string; subject: string }
+  chuDeListInput: ChuDeItem[] = [],
+  cauListInput: CauItem[] = [],
+  luatInput?: LuatConfig,
+  contextInfoInput?: { grade: string; subject: string }
 ): AuditReport {
+  const chuDeList = Array.isArray(chuDeListInput) ? chuDeListInput : [];
+  const cauList = Array.isArray(cauListInput) ? cauListInput : [];
+  const luat = luatInput || PRESETS['3-4-3'].luat;
+  const contextInfo = contextInfoInput || { grade: '', subject: '' };
+
   const checks: AuditCheckItem[] = [];
   const allNoiDung = getAllNoiDungList(chuDeList);
   const matrixData = getUnifiedMatrixSpecData(chuDeList, cauList, luat);
@@ -26,7 +31,7 @@ export function runCv7991Audit(
   const round2 = (val: number) => Number(val.toFixed(2));
 
   // --- K1 [ERROR]: Tổng điểm = 10,0 ---
-  const totalScore = round2(cauList.reduce((s, c) => s + (c.diem || 0), 0));
+  const totalScore = round2(cauList.reduce((s, c) => s + (c?.diem || 0), 0));
   const k1Passed = Math.abs(totalScore - 10.0) < 0.01;
   checks.push({
     id: 'K1',
@@ -135,13 +140,13 @@ export function runCv7991Audit(
   });
 
   // --- K5 [WARNING]: Tỷ lệ điểm theo mức độ nhận thức (Biết / Hiểu / Vận dụng) ---
-  const bietScore = round2(cauList.filter((c) => c.muc === 'Biet').reduce((s, c) => s + c.diem, 0));
-  const hieuScore = round2(cauList.filter((c) => c.muc === 'Hieu').reduce((s, c) => s + c.diem, 0));
-  const vdScore = round2(cauList.filter((c) => c.muc === 'VanDung').reduce((s, c) => s + c.diem, 0));
+  const bietScore = round2(cauList.filter((c) => c && c.muc === 'Biet').reduce((s, c) => s + (c?.diem || 0), 0));
+  const hieuScore = round2(cauList.filter((c) => c && c.muc === 'Hieu').reduce((s, c) => s + (c?.diem || 0), 0));
+  const vdScore = round2(cauList.filter((c) => c && c.muc === 'VanDung').reduce((s, c) => s + (c?.diem || 0), 0));
 
-  const bietDiff = Math.abs(bietScore - luat.bietTarget);
-  const hieuDiff = Math.abs(hieuScore - luat.hieuTarget);
-  const vdDiff = Math.abs(vdScore - luat.vanDungTarget);
+  const bietDiff = Math.abs(bietScore - (luat.bietTarget || 0));
+  const hieuDiff = Math.abs(hieuScore - (luat.hieuTarget || 0));
+  const vdDiff = Math.abs(vdScore - (luat.vanDungTarget || 0));
 
   const tol = luat.tolerance || 0;
   const k5Passed = bietDiff <= tol && hieuDiff <= tol && vdDiff <= tol;
@@ -398,8 +403,8 @@ export function runCv7991Audit(
     const matTypeCount = matrixData.typeGrandTotals[type].count;
     const matTypeScore = matrixData.typeGrandTotals[type].score;
 
-    const cauTypeCount = cauList.filter((c) => c.dang === type).length;
-    const cauTypeScore = round2(cauList.filter((c) => c.dang === type).reduce((s, c) => s + c.diem, 0));
+    const cauTypeCount = cauList.filter((c) => c && c.dang === type).length;
+    const cauTypeScore = round2(cauList.filter((c) => c && c.dang === type).reduce((s, c) => s + (c?.diem || 0), 0));
 
     if (matTypeCount !== cauTypeCount || Math.abs(matTypeScore - cauTypeScore) > 0.01) {
       k15Passed = false;
