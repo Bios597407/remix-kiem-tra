@@ -237,6 +237,7 @@ export interface ExamConfig {
   academicYear: string;
   departmentName?: string;
   officialExamType?: string;
+  showOfficialBadge?: boolean;
   pageCountText?: string;
   durationNote?: string;
 
@@ -271,6 +272,8 @@ export interface ExamConfig {
   layoutLineHeight?: 'compact' | 'standard' | 'relaxed';
   layoutFontSize?: 'small' | 'medium' | 'large';
   appUiScale?: 'compact' | 'standard' | 'relaxed';
+  pageSize?: 'A4' | 'Letter';
+  balanceAnswersOption?: boolean;
 }
 
 export interface GradeTabState {

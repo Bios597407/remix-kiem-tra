@@ -8,6 +8,7 @@ interface HeaderProps {
   onOpenHistory: () => void;
   onResetDefaults: () => void;
   onDownloadStandalone: () => void;
+  onOpenStandardExporter?: () => void;
   onClearOldContent?: () => void;
   savedBankCount: number;
   historyCount: number;
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHistory,
   onResetDefaults,
   onDownloadStandalone,
+  onOpenStandardExporter,
   onClearOldContent,
   savedBankCount,
   historyCount,
@@ -55,6 +57,17 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Header Actions */}
         <div className="flex items-center space-x-2.5">
+          {/* Export Standard Form Button */}
+          {onOpenStandardExporter && (
+            <button
+              onClick={onOpenStandardExporter}
+              className="flex items-center space-x-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-3.5 py-2 text-xs font-black text-white transition-all shadow-md cursor-pointer"
+              title="Xuất Đề Kiểm Tra Theo Form Trình Bày Chuẩn (Xem trước, In & Tải Word)"
+            >
+              <Download className="h-4 w-4 text-amber-300 animate-bounce" />
+              <span>Xuất đề (theo form chuẩn)</span>
+            </button>
+          )}
           {/* History */}
           <button
             onClick={onOpenHistory}

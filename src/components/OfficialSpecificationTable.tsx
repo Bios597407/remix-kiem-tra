@@ -69,7 +69,8 @@ export const OfficialSpecificationTable: React.FC<OfficialSpecificationTableProp
         BẢN ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KÌ
       </div>
 
-      <div className="overflow-x-auto border border-black bg-white shadow-sm">
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto border border-black bg-white shadow-sm">
         <table className="w-full text-center border-collapse border border-black text-slate-900 text-[11px] leading-snug">
           <thead>
             <tr className="bg-slate-100 font-bold border-b border-black">
@@ -345,6 +346,47 @@ export const OfficialSpecificationTable: React.FC<OfficialSpecificationTableProp
             </tr>
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card Accordion View */}
+      <div className="block md:hidden space-y-3">
+        {matrixData.rows.map((r, rIdx) => (
+          <div key={rIdx} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs space-y-2.5">
+            <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-900 text-[11px] font-black flex items-center justify-center shrink-0">
+                  {r.stt}
+                </span>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight block">
+                    {r.chuDeTen}
+                  </span>
+                  <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                    {r.noiDungTen}
+                  </h4>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1 text-xs text-slate-700">
+              <span className="font-bold text-[11px] text-slate-900 uppercase block">Yêu cầu cần đạt:</span>
+              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-[11px] leading-relaxed">
+                {r.yccdList.length === 0 ? (
+                  <span className="text-slate-400 italic">Chưa nhập YCCĐ</span>
+                ) : (
+                  <ul className="list-disc list-inside space-y-1">
+                    {r.yccdList.map((y, yIdx) => (
+                      <li key={yIdx}>
+                        {y.noiDung}{' '}
+                        {y.nangLuc ? <span className="font-mono text-blue-800 font-semibold">({y.nangLuc})</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

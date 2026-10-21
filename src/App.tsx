@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Sliders, Grid, FileDown, Sparkles } from 'lucide-react';
 import Header from './components/Header';
 import ConfigPanel from './components/ConfigPanel';
 import Workspace from './components/Workspace';
@@ -7,7 +8,7 @@ import ApiKeyModal from './components/ApiKeyModal';
 import QuestionBankModal from './components/QuestionBankModal';
 import ExamHistoryModal from './components/ExamHistoryModal';
 import PrintPreviewModal from './components/PrintPreviewModal';
-import InteractiveMatrixDashboard from './components/InteractiveMatrixDashboard';
+import StandardExamExporterModal from './components/StandardExamExporterModal';
 import { useToast } from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -60,8 +61,8 @@ const DEFAULT_LUAT: LuatConfig = {
 };
 
 const DEFAULT_CONFIG: ExamConfig = {
-  schoolName: '',
-  examTitle: 'ĐỀ KIỂM TRA ĐỊNH KÌ',
+  schoolName: 'TRƯỜNG THPT VÕ TRƯỜNG TOẢN',
+  examTitle: 'ĐỀ KIỂM TRA ĐỊNH KÌ GIỮA HỌC KỲ I',
   examType: 'Kiểm tra định kì',
   gradeLevel: 'THPT',
   grade: '12',
@@ -71,8 +72,9 @@ const DEFAULT_CONFIG: ExamConfig = {
   durationMinutes: 90,
   totalScore: 10,
   academicYear: getSystemAcademicYear(),
-  departmentName: '',
+  departmentName: 'PHÒNG GIÁO DỤC & ĐÀO TẠO TPHCM',
   officialExamType: 'Đề chính thức',
+  showOfficialBadge: true,
   pageCountText: '2',
   durationNote: '(không kể thời gian phát đề)',
   luat: DEFAULT_LUAT,
@@ -244,6 +246,7 @@ export default function App() {
   const [showBankModal, setShowBankModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showStandardExporterModal, setShowStandardExporterModal] = useState(false);
   const [printDocType, setPrintDocType] = useState<'exam' | 'answers' | 'matrix' | 'spec' | 'study_guide' | 'full'>('exam');
   const [workspaceTab, setWorkspaceTab] = useState<'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide'>('matrix');
 
@@ -313,6 +316,7 @@ export default function App() {
           onOpenHistory={() => setShowHistoryModal(true)}
           onResetDefaults={handleClearAllContent}
           onDownloadStandalone={() => downloadStandaloneSingleFileHtml()}
+          onOpenStandardExporter={() => setShowStandardExporterModal(true)}
           onClearOldContent={handleClearAllContent}
           savedBankCount={0}
           historyCount={0}
@@ -326,7 +330,7 @@ export default function App() {
 
         <main className="flex-1 max-w-[1720px] w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-6">
           {/* Top Section: App Configuration & Workflow arranged Horizontally */}
-          <section className="w-full">
+          <section id="config-section" className="w-full">
             <ConfigPanel
               config={config}
               onChangeConfig={(newCfg) => {
@@ -387,10 +391,8 @@ export default function App() {
             <GenerationStepper currentStep={progressStep} message={progressMsg} />
           )}
 
-
-
           {/* Bottom Section: Full-Width Workspace underneath */}
-          <section className="w-full">
+          <section id="workspace-section" className="w-full">
             <Workspace
               config={config}
               chuDeList={currentTabState.chuDeList}
@@ -410,6 +412,7 @@ export default function App() {
                 setPrintDocType(type);
                 setShowPrintModal(true);
               }}
+              onOpenStandardExporter={() => setShowStandardExporterModal(true)}
               auditPassed={auditReport.passed}
             />
           </section>
@@ -440,6 +443,54 @@ export default function App() {
             luat={currentTabState.luat}
           />
         )}
+
+        {/* Standard Exporter Modal */}
+        <StandardExamExporterModal
+          isOpen={showStandardExporterModal}
+          onClose={() => setShowStandardExporterModal(false)}
+          config={config}
+          questions={currentTabState.generatedQuestions}
+          onChangeConfig={(updated) => {
+            updateCurrentTabState((prev) => ({
+              ...prev,
+              pageSize: updated.pageSize,
+              balanceAnswersOption: updated.balanceAnswersOption,
+            }));
+          }}
+        />
+
+        {/* Mobile Fixed Bottom Dock for 1-Tap Touch Navigation */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 text-white backdrop-blur-md border-t border-slate-800 px-3 py-2 flex justify-around items-center md:hidden shadow-2xl no-print">
+          <button
+            onClick={() => {
+              const el = document.getElementById('config-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex flex-col items-center gap-1 text-[10px] font-bold text-slate-300 hover:text-white transition active:scale-95"
+          >
+            <Sliders className="w-5 h-5 text-indigo-400" />
+            <span>1. Cấu hình & AI</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const el = document.getElementById('workspace-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex flex-col items-center gap-1 text-[10px] font-bold text-slate-300 hover:text-white transition active:scale-95"
+          >
+            <Grid className="w-5 h-5 text-blue-400" />
+            <span>2. Ma trận & Đề thi</span>
+          </button>
+
+          <button
+            onClick={() => setShowStandardExporterModal(true)}
+            className="flex flex-col items-center gap-1 text-[10px] font-bold text-amber-300 hover:text-amber-200 transition active:scale-95 bg-gradient-to-r from-amber-500/20 to-orange-500/20 px-3 py-1 rounded-xl border border-amber-500/40"
+          >
+            <FileDown className="w-5 h-5 text-amber-400 animate-pulse" />
+            <span>3. Xuất đề CV 7991</span>
+          </button>
+        </div>
       </div>
     </ErrorBoundary>
   );

@@ -52,6 +52,7 @@ interface WorkspaceProps {
   onTabChange: (tab: 'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide') => void;
   onUpdateCauList?: (updated: CauItem[]) => void;
   onPrint: (type: 'exam' | 'answers' | 'matrix' | 'study_guide' | 'full') => void;
+  onOpenStandardExporter?: () => void;
   auditPassed: boolean;
 }
 
@@ -66,6 +67,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onTabChange,
   onUpdateCauList,
   onPrint,
+  onOpenStandardExporter,
   auditPassed,
 }) => {
   const toast = useToast();
@@ -151,6 +153,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
+            {/* Nút Xuất đề (theo form chuẩn) */}
+            {onOpenStandardExporter && (
+              <button
+                onClick={onOpenStandardExporter}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black transition shadow-md bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-600 hover:to-red-600 text-white cursor-pointer ring-2 ring-amber-300 animate-pulse"
+                title="Xuất đề (theo form chuẩn) - Mở giao diện xem trước, in và tải file .docx chuẩn 100%"
+              >
+                <FileDown className="h-4 w-4 text-white" />
+                <span>Xuất đề (theo form chuẩn)</span>
+              </button>
+            )}"
             {/* Xuất Word (.docx) Đầy đủ theo mẫu chuẩn */}
             <button
               onClick={() => handleExportDocx('full')}

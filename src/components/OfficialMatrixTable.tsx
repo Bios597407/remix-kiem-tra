@@ -67,7 +67,8 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
         MA TRẬN ĐỀ KIỂM TRA ĐỊNH KÌ
       </div>
 
-      <div className="overflow-x-auto border border-black bg-white shadow-sm">
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto border border-black bg-white shadow-sm">
         <table className="w-full text-center border-collapse border border-black text-slate-900 text-[11px] leading-snug">
           <thead>
             <tr className="bg-slate-100 font-bold border-b border-black">
@@ -296,6 +297,86 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
             </tr>
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card Accordion View */}
+      <div className="block md:hidden space-y-3">
+        {matrixData.rows.map((r, rIdx) => {
+          const bietRowSum =
+            r.matrixCells.NLC.Biet.count +
+            r.matrixCells.DS.Biet.count +
+            r.matrixCells.TLN.Biet.count +
+            r.matrixCells.TL.Biet.count;
+
+          const hieuRowSum =
+            r.matrixCells.NLC.Hieu.count +
+            r.matrixCells.DS.Hieu.count +
+            r.matrixCells.TLN.Hieu.count +
+            r.matrixCells.TL.Hieu.count;
+
+          const vdRowSum =
+            r.matrixCells.NLC.VanDung.count +
+            r.matrixCells.DS.VanDung.count +
+            r.matrixCells.TLN.VanDung.count +
+            r.matrixCells.TL.VanDung.count;
+
+          return (
+            <div key={rIdx} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs space-y-2.5">
+              <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-900 text-[11px] font-black flex items-center justify-center shrink-0">
+                    {r.stt}
+                  </span>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight block">
+                      {r.chuDeTen}
+                    </span>
+                    <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                      {r.noiDungTen}
+                    </h4>
+                  </div>
+                </div>
+                <span className="text-xs font-black bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md shrink-0">
+                  {r.rowPercentScore.toFixed(0)}%
+                </span>
+              </div>
+
+              {/* Levels summary grid */}
+              <div className="grid grid-cols-3 gap-1.5 text-[11px] text-center pt-1">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5">
+                  <span className="block text-[10px] text-slate-500 font-bold uppercase">Biết</span>
+                  <span className="font-extrabold text-slate-800">{bietRowSum || 0} câu</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5">
+                  <span className="block text-[10px] text-slate-500 font-bold uppercase">Hiểu</span>
+                  <span className="font-extrabold text-slate-800">{hieuRowSum || 0} câu</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5">
+                  <span className="block text-[10px] text-slate-500 font-bold uppercase">V.Dụng</span>
+                  <span className="font-extrabold text-slate-800">{vdRowSum || 0} câu</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Mobile Grand Totals Summary Card */}
+        <div className="bg-slate-900 text-white rounded-xl p-4 shadow-md space-y-2">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="font-bold text-xs uppercase tracking-wider text-slate-300">Tổng Đề Kiệm Tra</span>
+            <span className="font-black text-sm text-emerald-400">{matrixData.grandTotalPercent.toFixed(0)}%</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+            <div className="bg-slate-800/80 p-2 rounded-lg">
+              <span className="text-[10px] text-slate-400 font-bold block">Tổng số câu/ý</span>
+              <span className="font-black text-white text-sm">{matrixData.grandTotalCount}</span>
+            </div>
+            <div className="bg-slate-800/80 p-2 rounded-lg">
+              <span className="text-[10px] text-slate-400 font-bold block">Tổng số điểm</span>
+              <span className="font-black text-amber-300 text-sm">{formatScore(matrixData.grandTotalScore)} điểm</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

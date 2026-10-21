@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Printer,
+  Download,
   FileDown,
   X,
   FileText,
@@ -19,6 +20,7 @@ import {
   LuatConfig,
 } from '../types/exam';
 import MathRenderer from '../utils/mathRenderer';
+import { downloadStandardFormDocx } from '../utils/docxExporter';
 import { useToast } from './Toast';
 import OfficialExamHeader from './OfficialExamHeader';
 import OfficialMatrixTable from './OfficialMatrixTable';
@@ -105,31 +107,43 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
         </div>
 
         {/* Document Switcher Toolbar */}
-        <div className="no-print bg-slate-100 border-b border-slate-200 p-2 flex flex-wrap gap-1.5 text-xs font-bold">
-          {[
-            { id: 'exam', label: 'Đề kiểm tra', icon: FileText },
-            { id: 'answers', label: 'Đáp án & Lời giải', icon: CheckCircle },
-            { id: 'matrix', label: 'Ma trận', icon: Grid },
-            { id: 'spec', label: 'Bản đặc tả', icon: ListTree },
-            { id: 'full', label: 'Trọn bộ Hồ sơ', icon: Layers },
-          ].map((item) => {
-            const Icon = item.icon;
-            const isActive = activeDocType === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveDocType(item.id as PrintDocType)}
-                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+        <div className="no-print bg-slate-100 border-b border-slate-200 p-2 flex flex-wrap items-center justify-between gap-1.5 text-xs font-bold">
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { id: 'exam', label: 'Đề kiểm tra', icon: FileText },
+              { id: 'answers', label: 'Đáp án & Lời giải', icon: CheckCircle },
+              { id: 'matrix', label: 'Ma trận', icon: Grid },
+              { id: 'spec', label: 'Bản đặc tả', icon: ListTree },
+              { id: 'full', label: 'Trọn bộ Hồ sơ', icon: Layers },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = activeDocType === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveDocType(item.id as PrintDocType)}
+                  className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => downloadStandardFormDocx(config, questions, { mode: 'full', examCode: '101' })}
+            className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Tải ngay file Word (.docx) theo đúng Form Trình Bày Chuẩn 100%"
+          >
+            <Download className="w-3.5 h-3.5 text-amber-300" />
+            <span>Xuất đề (theo form chuẩn)</span>
+          </button>
         </div>
 
         {/* Printable Paper Area */}

@@ -7,7 +7,7 @@ export const DEFAULT_MODEL = 'gemini-3-flash-preview';
 
 /**
  * List of fallback models in priority order.
- * If the primary model (often gemini-2.5-flash) returns 404, we immediately try these.
+ * If the primary model returns 404, we immediately try these.
  */
 export const FALLBACK_MODELS = [
   'gemini-3-flash-preview',
@@ -34,8 +34,6 @@ export function initializeAndClearModelCache(): void {
       )) {
         console.warn(`[AI System] Detected deprecated model reference in localStorage key "${key}". Overriding with "${DEFAULT_MODEL}".`);
         
-        // If it's a JSON object (like our config), we should be careful, but the prompt says "ghi đè nó thành gemini-3-flash-preview ngay lập tức".
-        // To be safe, if it looks like JSON, we try to parse and replace specific fields, otherwise we replace the whole string.
         try {
           const parsed = JSON.parse(stored);
           if (parsed && typeof parsed === 'object') {
@@ -56,7 +54,6 @@ export function initializeAndClearModelCache(): void {
             localStorage.setItem(key, DEFAULT_MODEL);
           }
         } catch {
-          // Not JSON, just replace the string if it matches
           localStorage.setItem(key, DEFAULT_MODEL);
         }
       }
@@ -81,7 +78,6 @@ export async function fetchGeminiWithFallback(
 ): Promise<{ data: any; usedModel: string }> {
   let lastError = '';
   
-  // Combine custom model (if any) with the fallback list, ensuring uniqueness and priority
   const candidates = Array.from(new Set([DEFAULT_MODEL, ...FALLBACK_MODELS]));
 
   for (const modelName of candidates) {
@@ -107,7 +103,6 @@ export async function fetchGeminiWithFallback(
         const errorText = await response.text();
         const lowerError = errorText.toLowerCase();
         
-        // If 404 or model unavailable, continue to next model
         if (
           response.status === 404 || 
           lowerError.includes('not found') || 
@@ -119,16 +114,12 @@ export async function fetchGeminiWithFallback(
           continue;
         }
         
-        // For other errors (like 429), we might still want to try another model or bubble up
         lastError = `[${modelName}] HTTP ${response.status}: ${errorText}`;
         continue;
       }
 
       const data = await response.json();
-      
-      // If success, update local storage to remember this working model for future calls (Optional but requested)
       localStorage.setItem('exam_ai_gemini_model', modelName);
-      
       return { data, usedModel: modelName };
 
     } catch (err: any) {
@@ -156,47 +147,130 @@ export function extractTextFromGeminiResponse(data: any): string {
 }
 
 /**
- * Safe JSON Parser with automatic cleaning and error recovery.
+ * Safe JSON Parser with automatic cleaning, auto-closure, and error recovery.
  * Guaranteed to not crash the application.
  */
 export function safeJsonParse(rawText: string): any {
   if (!rawText || typeof rawText !== 'string') return null;
-  
-  let cleaned = rawText.trim();
 
-  // 1. Remove Markdown blocks
-  const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (codeBlockMatch && codeBlockMatch[1]) {
-    cleaned = codeBlockMatch[1].trim();
-  } else {
-    // Basic cleanup of leading/trailing markdown characters
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  }
-
-  // 2. Standard JSON Parse
   try {
-    return JSON.parse(cleaned);
-  } catch (err) {
-    // 3. Fallback: Repair common AI formatting errors (trailing commas, quotes, etc.)
-    try {
-      const sanitized = sanitizeJsonStringLiterals(cleaned).replace(/,\s*([\]\}])/g, '$1');
-      return JSON.parse(sanitized);
-    } catch (err2) {
-      // 4. Emergency: Salvage balanced objects from truncated response
-      console.warn('[AI System] JSON fundamental parsing error. Attempting to salvage partial objects...');
-      const salvaged = salvageBalancedObjects(cleaned);
-      if (salvaged && salvaged.length > 0) {
-        return salvaged;
-      }
-      
-      console.error('[AI System] JSON parsing failed completely.', err2);
-      return null;
+    let cleaned = rawText.trim();
+
+    // 1. Remove Markdown code blocks
+    const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      cleaned = codeBlockMatch[1].trim();
+    } else {
+      cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
     }
+
+    // Direct JSON parse attempt
+    try {
+      return JSON.parse(cleaned);
+    } catch { /* proceed */ }
+
+    // Strip JS-style comments
+    cleaned = cleaned.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+
+    // Extract JSON object or array bounds
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    const firstBracket = cleaned.indexOf('[');
+    const lastBracket = cleaned.lastIndexOf(']');
+
+    if (firstBrace !== -1 && lastBrace > firstBrace && (firstBracket === -1 || firstBrace < firstBracket)) {
+      const candidate = cleaned.slice(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(candidate);
+      } catch { /* proceed */ }
+    } else if (firstBracket !== -1 && lastBracket > firstBracket) {
+      const candidate = cleaned.slice(firstBracket, lastBracket + 1);
+      try {
+        return JSON.parse(candidate);
+      } catch { /* proceed */ }
+    }
+
+    // Sanitized string parse attempt
+    try {
+      const sanitized = sanitizeJsonStringLiterals(cleaned)
+        .replace(/,\s*([\]\}])/g, '$1')
+        .replace(/:\s*,/g, ': null,');
+      return JSON.parse(sanitized);
+    } catch { /* proceed */ }
+
+    // Auto-closed parse attempt
+    try {
+      const closed = autoCloseJson(cleaned);
+      const sanitized = sanitizeJsonStringLiterals(closed)
+        .replace(/,\s*([\]\}])/g, '$1')
+        .replace(/:\s*,/g, ': null,');
+      return JSON.parse(sanitized);
+    } catch { /* proceed */ }
+
+    // Salvage balanced objects
+    const salvaged = salvageBalancedObjects(cleaned);
+    if (salvaged && salvaged.length > 0) {
+      if (salvaged.length === 1) return salvaged[0];
+      const bestObj = salvaged.find((o) => o && typeof o === 'object' && (o.chuDe || o.cap || o.mon));
+      if (bestObj) return bestObj;
+      return salvaged;
+    }
+
+    return null;
+  } catch (err) {
+    console.warn('[AI System] safeJsonParse caught exception:', err);
+    return null;
   }
 }
 
 /** Legacy alias for compatibility */
 export const tryRepairJson = safeJsonParse;
+
+function autoCloseJson(str: string): string {
+  if (!str) return str;
+  let inString = false;
+  let escaped = false;
+  const stack: string[] = [];
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === '{' || ch === '[') {
+      stack.push(ch);
+    } else if (ch === '}') {
+      if (stack[stack.length - 1] === '{') stack.pop();
+    } else if (ch === ']') {
+      if (stack[stack.length - 1] === '[' ) stack.pop();
+    }
+  }
+
+  let result = str;
+  if (inString) {
+    result += '"';
+  }
+
+  result = result.replace(/,\s*$/g, '');
+
+  while (stack.length > 0) {
+    const open = stack.pop();
+    if (open === '{') result += '}';
+    else if (open === '[') result += ']';
+  }
+
+  return result;
+}
 
 function sanitizeJsonStringLiterals(str: string): string {
   let result = '';
@@ -281,4 +355,3 @@ function salvageBalancedObjects(str: string): any[] {
   }
   return results;
 }
-
