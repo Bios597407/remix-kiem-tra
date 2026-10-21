@@ -288,6 +288,7 @@ export interface GradeTabState {
   knowledgeScope?: string;
   learningOutcomes?: string;
   readingPassage?: string;
+  appUiScale?: 'compact' | 'standard' | 'relaxed';
   chuDeList: ChuDeItem[];
   luat: LuatConfig;
   nangLucList: NangLucItem[];

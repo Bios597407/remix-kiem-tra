@@ -26,7 +26,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
 
   // Unit configuration state (saved in user config, editable per exam, default pre-filled)
   const [department, setDepartment] = useState<string>(
-    config.departmentName || 'PHÒNG GIÁO DỤC & ĐÀO TẠO TPHCM'
+    config.departmentName || 'SỞ GIÁO DỤC & ĐÀO TẠO TPHCM'
   );
   const [school, setSchool] = useState<string>(
     config.schoolName || 'TRƯỜNG THPT VÕ TRƯỜNG TOẢN'
@@ -46,6 +46,22 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
   const [manualPageInput, setManualPageInput] = useState<string>(
     config.manualPageCount !== undefined ? String(config.manualPageCount) : ''
   );
+
+  const [fontScale, setFontScale] = useState<'compact' | 'standard' | 'relaxed'>(
+    (config.appUiScale as any) || 'standard'
+  );
+
+  const getScaleStyle = (scale: 'compact' | 'standard' | 'relaxed') => {
+    switch (scale) {
+      case 'compact':
+        return { fontSize: '14px', lineHeight: 1.35 };
+      case 'relaxed':
+        return { fontSize: '18px', lineHeight: 1.65 };
+      case 'standard':
+      default:
+        return { fontSize: '16px', lineHeight: 1.5 };
+    }
+  };
 
   // Apply answer balancing if option is ON
   const activeQuestions = balanceAnswers ? balanceMcqAnswerKeys(questions) : questions;
@@ -182,6 +198,8 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
               </select>
             </div>
 
+
+
             {/* Answer Balancing Toggle */}
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
@@ -228,7 +246,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                 type="text"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                placeholder="VD: PHÒNG GIÁO DỤC & ĐÀO TẠO TPHCM"
+                placeholder="VD: SỞ GIÁO DỤC & ĐÀO TẠO TPHCM"
                 className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
             </div>
@@ -330,7 +348,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
         {/* Live Paper Preview Sheet */}
         <div className="p-6 overflow-y-auto flex-1 bg-slate-200">
           <div
-            className={`mx-auto bg-white shadow-xl rounded-xs print-sheet text-black text-[11pt] font-serif leading-normal ${
+            className={`mx-auto bg-white shadow-xl rounded-xs print-sheet text-black font-serif scale-${fontScale} ${
               pageSize === 'Letter' ? 'max-w-[215.9mm]' : 'max-w-[210mm]'
             }`}
             style={{
@@ -340,6 +358,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
               paddingRight: '2.03cm',
               fontFamily: "'Times New Roman', Times, serif",
               color: '#000000',
+              ...getScaleStyle(fontScale),
             }}
           >
             {/* 3. KHỐI ĐẦU ĐỀ (Table 1 row x 2 columns) */}

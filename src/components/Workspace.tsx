@@ -53,6 +53,7 @@ interface WorkspaceProps {
   onUpdateCauList?: (updated: CauItem[]) => void;
   onPrint: (type: 'exam' | 'answers' | 'matrix' | 'study_guide' | 'full') => void;
   onOpenStandardExporter?: () => void;
+  onConfigChange?: (updated: ExamConfig) => void;
   auditPassed: boolean;
 }
 
@@ -68,6 +69,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onUpdateCauList,
   onPrint,
   onOpenStandardExporter,
+  onConfigChange,
   auditPassed,
 }) => {
   const toast = useToast();
@@ -113,6 +115,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   };
 
   const totalScore = Number(questions.reduce((sum, q) => sum + (q.score || 0), 0).toFixed(2));
+
+  const getDisplayScaleStyle = (scale?: 'compact' | 'standard' | 'relaxed') => {
+    switch (scale) {
+      case 'compact':
+        return { fontSize: '14px', lineHeight: 1.35 };
+      case 'relaxed':
+        return { fontSize: '18px', lineHeight: 1.65 };
+      case 'standard':
+      default:
+        return { fontSize: '16px', lineHeight: 1.5 };
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -163,7 +177,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                 <FileDown className="h-4 w-4 text-white" />
                 <span>Xuất đề (theo form chuẩn)</span>
               </button>
-            )}"
+            )}
             {/* Xuất Word (.docx) Đầy đủ theo mẫu chuẩn */}
             <button
               onClick={() => handleExportDocx('full')}
@@ -257,7 +271,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
               <p className="text-[11px] text-slate-400">Nhấn "TẠO ĐỀ THI VỚI AI" ở bảng cấu hình bên trái để tiến hành sinh câu hỏi.</p>
             </div>
           ) : (
-            <div className="space-y-6 font-exam text-slate-900 leading-relaxed text-sm sm:text-base">
+            <div className="space-y-6 font-exam text-slate-900" style={getDisplayScaleStyle(config.appUiScale)}>
               {questions.map((q, idx) => (
                 <div key={q.id || idx} className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200">
                   <div className="font-bold">

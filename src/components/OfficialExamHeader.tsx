@@ -7,7 +7,7 @@ interface OfficialExamHeaderProps {
 }
 
 export const OfficialExamHeader: React.FC<OfficialExamHeaderProps> = ({ config, activeCode }) => {
-  const department = (config.departmentName || 'PHÒNG GD&ĐT HUYỆN LONG PHÚ').toUpperCase();
+  const department = (config.departmentName || 'SỞ GIÁO DỤC & ĐÀO TẠO TPHCM').toUpperCase();
   const school = (config.schoolName || 'TRƯỜNG THCS LONG PHÚ').toUpperCase();
 
   const examTitle = (config.examTitle || 'ĐỀ KIỂM TRA ĐỊNH KỲ GIỮA HỌC KỲ I').toUpperCase();

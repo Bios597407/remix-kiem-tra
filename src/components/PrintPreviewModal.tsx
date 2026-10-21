@@ -77,6 +77,18 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
     window.print();
   };
 
+  const getDisplayScaleStyle = (scale?: 'compact' | 'standard' | 'relaxed') => {
+    switch (scale) {
+      case 'compact':
+        return { fontSize: '16px', lineHeight: 1.35 };
+      case 'relaxed':
+        return { fontSize: '20px', lineHeight: 1.65 };
+      case 'standard':
+      default:
+        return { fontSize: '18px', lineHeight: 1.5 };
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
@@ -148,7 +160,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
 
         {/* Printable Paper Area */}
         <div className="p-8 overflow-y-auto flex-1 bg-slate-100 font-sans">
-          <div className="max-w-[210mm] mx-auto bg-white p-10 shadow-lg rounded-sm print-sheet text-slate-900 space-y-6">
+          <div className="max-w-[210mm] mx-auto bg-white p-10 shadow-lg rounded-sm print-sheet text-slate-900 space-y-6" style={getDisplayScaleStyle(config.appUiScale)}>
             {/* View 1: ĐỀ KIỂM TRA */}
             {(activeDocType === 'exam' || activeDocType === 'full') && (
               <div className="space-y-6">

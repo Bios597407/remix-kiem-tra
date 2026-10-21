@@ -1,25 +1,41 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
-    font-family: 'Inter', 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    transition: font-size 0.2s ease, line-height 0.2s ease;
-  }
-
-  /* Global UI Scaling - Affects all rem-based sizes and typography */
-  :root[data-ui-scale="compact"] {
+  :root {
+    --app-font-size: 16px;
+    --app-line-height: 1.5;
     font-size: 16px;
-    line-height: 1.35;
-  }
-
-  :root[data-ui-scale="standard"] {
-    font-size: 18px;
     line-height: 1.5;
   }
 
+  :root[data-ui-scale="compact"] {
+    --app-font-size: 14px;
+    --app-line-height: 1.35;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+  }
+
+  :root[data-ui-scale="standard"] {
+    --app-font-size: 16px;
+    --app-line-height: 1.5;
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+  }
+
   :root[data-ui-scale="relaxed"] {
-    font-size: 20px;
-    line-height: 1.65;
+    --app-font-size: 18px;
+    --app-line-height: 1.65;
+    font-size: 18px !important;
+    line-height: 1.65 !important;
+  }
+
+  html, body, #root {
+    font-family: 'Inter', 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: var(--app-font-size);
+    line-height: var(--app-line-height);
+    transition: font-size 0.15s ease, line-height 0.15s ease;
+    overflow-x: hidden;
+    max-width: 100vw;
   }
 }
 

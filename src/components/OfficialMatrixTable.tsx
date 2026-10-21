@@ -49,6 +49,12 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
     return num % 1 === 0 ? `${num},0` : num.toFixed(1).replace('.', ',');
   };
 
+  const formatPercent = (num: number) => {
+    if (num === undefined || num === null || isNaN(num)) return '0%';
+    if (Number.isInteger(num)) return `${num}%`;
+    return `${Number(num.toFixed(2)).toString().replace('.', ',')}%`;
+  };
+
   if (!chuDeList || chuDeList.length === 0 || chuDeList.every((c) => c.noiDung.length === 0)) {
     return (
       <div className={`p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg space-y-3 ${className}`}>
@@ -193,7 +199,7 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
                   <td className="border border-black p-1 font-bold bg-slate-50">{vdRowSum || ''}</td>
 
                   <td className="border border-black p-1 font-bold text-center">
-                    {r.rowPercentScore.toFixed(0)}%
+                    {formatPercent(r.rowPercentScore)}
                   </td>
                 </tr>
               );
@@ -270,29 +276,29 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
               </td>
 
               <td colSpan={3} className="border border-black p-1">
-                {matrixData.typeGrandTotals.NLC.percent.toFixed(0)}%
+                {formatPercent(matrixData.typeGrandTotals.NLC.percent)}
               </td>
 
               <td colSpan={3} className="border border-black p-1">
-                {matrixData.typeGrandTotals.DS.percent.toFixed(0)}%
+                {formatPercent(matrixData.typeGrandTotals.DS.percent)}
               </td>
 
               {showTln && (
                 <td colSpan={3} className="border border-black p-1">
-                  {matrixData.typeGrandTotals.TLN.percent.toFixed(0)}%
+                  {formatPercent(matrixData.typeGrandTotals.TLN.percent)}
                 </td>
               )}
 
               <td colSpan={3} className="border border-black p-1">
-                {matrixData.typeGrandTotals.TL.percent.toFixed(0)}%
+                {formatPercent(matrixData.typeGrandTotals.TL.percent)}
               </td>
 
-              <td className="border border-black p-1 bg-slate-200">{matrixData.levelGrandTotals.Biet.percent.toFixed(0)}%</td>
-              <td className="border border-black p-1 bg-slate-200">{matrixData.levelGrandTotals.Hieu.percent.toFixed(0)}%</td>
-              <td className="border border-black p-1 bg-slate-200">{matrixData.levelGrandTotals.VanDung.percent.toFixed(0)}%</td>
+              <td className="border border-black p-1 bg-slate-200">{formatPercent(matrixData.levelGrandTotals.Biet.percent)}</td>
+              <td className="border border-black p-1 bg-slate-200">{formatPercent(matrixData.levelGrandTotals.Hieu.percent)}</td>
+              <td className="border border-black p-1 bg-slate-200">{formatPercent(matrixData.levelGrandTotals.VanDung.percent)}</td>
 
               <td className="border border-black p-1 bg-slate-300 font-black text-emerald-900">
-                {matrixData.grandTotalPercent.toFixed(0)}%
+                {formatPercent(matrixData.grandTotalPercent)}
               </td>
             </tr>
           </tbody>
@@ -337,7 +343,7 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
                   </div>
                 </div>
                 <span className="text-xs font-black bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md shrink-0">
-                  {r.rowPercentScore.toFixed(0)}%
+                  {formatPercent(r.rowPercentScore)}
                 </span>
               </div>
 
@@ -363,8 +369,8 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
         {/* Mobile Grand Totals Summary Card */}
         <div className="bg-slate-900 text-white rounded-xl p-4 shadow-md space-y-2">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <span className="font-bold text-xs uppercase tracking-wider text-slate-300">Tổng Đề Kiệm Tra</span>
-            <span className="font-black text-sm text-emerald-400">{matrixData.grandTotalPercent.toFixed(0)}%</span>
+            <span className="font-bold text-xs uppercase tracking-wider text-slate-300">Tổng Đề Kiểm Tra</span>
+            <span className="font-black text-sm text-emerald-400">{formatPercent(matrixData.grandTotalPercent)}</span>
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs pt-1">
             <div className="bg-slate-800/80 p-2 rounded-lg">

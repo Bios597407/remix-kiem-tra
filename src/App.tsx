@@ -72,7 +72,7 @@ const DEFAULT_CONFIG: ExamConfig = {
   durationMinutes: 90,
   totalScore: 10,
   academicYear: getSystemAcademicYear(),
-  departmentName: 'PHÒNG GIÁO DỤC & ĐÀO TẠO TPHCM',
+  departmentName: 'SỞ GIÁO DỤC & ĐÀO TẠO TPHCM',
   officialExamType: 'Đề chính thức',
   showOfficialBadge: true,
   pageCountText: '2',
@@ -130,7 +130,6 @@ export default function App() {
     chuDeList: [],
     luat: DEFAULT_LUAT,
     nangLucList: [],
-    cauList: [],
     uploadedDocs: [],
     generatedQuestions: [],
   };
@@ -145,6 +144,7 @@ export default function App() {
       textbook: currentTabState.textbook,
       examTitle: currentTabState.examTitle,
       durationMinutes: currentTabState.durationMinutes,
+      appUiScale: currentTabState.appUiScale || 'standard',
       topicTitle: currentTabState.topicTitle,
       chapter: currentTabState.chapter,
       knowledgeScope: currentTabState.knowledgeScope,
@@ -162,9 +162,14 @@ export default function App() {
     };
   }, [gradeLevel, activeGrade, currentTabState]);
 
+  // Sync Global Display Font Scale (16px / 18px / 20px) to Root HTML Element
+  useEffect(() => {
+    const scale = config.appUiScale || 'standard';
+    document.documentElement.setAttribute('data-ui-scale', scale);
+  }, [config.appUiScale]);
+
   // Handle Tab Switch
   const handleSelectTab = (grade: string) => {
-    setActiveGrade(grade);
     if (!tabStates[grade]) {
       setTabStates((prev) => ({
         ...prev,
@@ -323,7 +328,8 @@ export default function App() {
           onConfigChange={(newCfg) => {
             updateCurrentTabState((prev) => ({
               ...prev,
-              subject: newCfg.subject,
+              subject: newCfg.subject !== undefined ? newCfg.subject : prev.subject,
+              appUiScale: newCfg.appUiScale !== undefined ? newCfg.appUiScale : prev.appUiScale,
             }));
           }}
         />
@@ -342,6 +348,7 @@ export default function App() {
                   durationMinutes: newCfg.durationMinutes,
                   schoolName: newCfg.schoolName,
                   academicYear: newCfg.academicYear,
+                  appUiScale: newCfg.appUiScale !== undefined ? newCfg.appUiScale : prev.appUiScale,
                   topicTitle: newCfg.topicTitle !== undefined ? newCfg.topicTitle : prev.topicTitle,
                   chapter: newCfg.chapter !== undefined ? newCfg.chapter : prev.chapter,
                   knowledgeScope: newCfg.knowledgeScope !== undefined ? newCfg.knowledgeScope : prev.knowledgeScope,
@@ -413,6 +420,12 @@ export default function App() {
                 setShowPrintModal(true);
               }}
               onOpenStandardExporter={() => setShowStandardExporterModal(true)}
+              onConfigChange={(updated) => {
+                updateCurrentTabState((prev) => ({
+                  ...prev,
+                  appUiScale: updated.appUiScale !== undefined ? updated.appUiScale : prev.appUiScale,
+                }));
+              }}
               auditPassed={auditReport.passed}
             />
           </section>
@@ -455,6 +468,7 @@ export default function App() {
               ...prev,
               pageSize: updated.pageSize,
               balanceAnswersOption: updated.balanceAnswersOption,
+              appUiScale: updated.appUiScale !== undefined ? updated.appUiScale : prev.appUiScale,
             }));
           }}
         />
