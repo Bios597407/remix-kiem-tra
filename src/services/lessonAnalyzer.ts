@@ -12,12 +12,17 @@ import {
   tryRepairJson,
 } from '../utils/geminiModels';
 import { safeString } from '../utils/dataNormalizer';
+import {
+  inferSubjectAndTextbook,
+  normalizeSubject,
+  normalizeTextbook,
+} from '../utils/subjectInference';
 
 export interface StructuredExtractionResult {
   cap: GradeLevel;
   khoi: string;
   mon: string;
-  textbook?: string;
+  textbook: string;
   chuDeList: ChuDeItem[];
   rawTopicsStr: string;
   rawOutcomesStr: string;
@@ -79,36 +84,60 @@ export async function extractStructuredContentFromDocs(
     );
   }
 
+  // Kết hợp nội dung và tên file để suy luận nền tảng bằng heuristic
+  const combinedDocText = docs.map((d) => d.content || '').join('\n\n');
+  const combinedFileNames = docs.map((d) => d.name).join(' ');
+  const heuristic = inferSubjectAndTextbook(combinedDocText, combinedFileNames);
+
   const promptText = `
-Bạn là chuyên gia Khảo thí và Chương trình GDPT 2018 Việt Nam.
-NHIỆM VỤ: Trích xuất chính xác danh sách Chủ đề, Nội dung / đơn vị kiến thức, và Yêu cầu cần đạt (YCCĐ) từ tài liệu bài học tải lên.
+Bạn là chuyên gia Khảo thí và Chương trình Giáo dục Phổ thông (GDPT) 2018 Việt Nam.
+NHIỆM VỤ ĐẶC BIỆT: Phân tích toàn diện tài liệu được nạp vào để:
+1. TỰ ĐỘNG SUY LUẬN VÀ NHẬN DIỆN MÔN HỌC ("mon"):
+   BẮT BUỘC đọc kỹ các thuật ngữ, công thức, bài học, văn bản trong tài liệu để suy ra môn học chính xác.
+   CHỌN CHUẨN XÁC 1 TRONG CÁC MÔN SAU:
+   - "Toán học": nếu có đạo hàm, tích phân, lượng giác, tọa độ, véc tơ, phương trình, hàm số, hình học, số học...
+   - "Vật lý": nếu có dao động điều hòa, con lắc, sóng cơ, sóng ánh sáng, điện từ, dòng điện xoay chiều, cơ năng...
+   - "Hóa học": nếu có cân bằng hóa học, este, lipit, amino acid, kim loại, phản ứng, electron, dung dịch, pH...
+   - "Sinh học": nếu có tế bào, ADN, ARN, di truyền, biến dị, nhiễm sắc thể, đột biến, quang hợp, sinh thái...
+   - "Khoa học tự nhiên": nếu là môn tích hợp KHTN THCS (Lớp 6, 7, 8, 9) gồm lí, hóa, sinh.
+   - "Ngữ văn": nếu có tác phẩm văn học, tác giả, bài thơ, truyện ngắn, đoạn trích, biện pháp tu từ, nghị luận...
+   - "Tiếng Anh": nếu tài liệu bằng tiếng Anh (vocabulary, grammar, reading comprehension, pronunciation...).
+   - "Lịch sử": nếu có chiến dịch, phong trào cách mạng, kháng chiến, triều đại, hiệp định, mốc lịch sử...
+   - "Địa lý": nếu có khí hậu, địa hình, sông ngòi, atlat, dân số, các ngành và vùng kinh tế...
+   - "Lịch sử & Địa lý": nếu là môn tích hợp Lịch sử và Địa lí THCS (Lớp 6, 7, 8, 9).
+   - "Tin học": nếu có lập trình, thuật toán, Python, Pascal, cơ sở dữ liệu, mạng máy tính, bảng tính Excel...
+   - "Giáo dục Kinh tế & Pháp luật": nếu có kinh tế thị trường, cung cầu, pháp luật, hiến pháp, doanh nghiệp...
+   - "Giáo dục công dân": nếu là môn GDCD THCS.
+   - "Công nghệ": nếu có cơ khí chế tạo, công nghệ điện, trồng trọt, chăn nuôi, bản vẽ kỹ thuật...
+   TUYỆT ĐỐI KHÔNG mặc định là Toán học nếu nội dung rõ ràng thuộc môn học khác!
 
-RÀNG BUỘC CỨNG BẮT BUỘC VỀ 3 NỘI DUNG MỨC ĐỘ:
-Mỗi bài học / đơn vị kiến thức trích xuất từ file tải lên BẮT BUỘC PHẢI CÓ ĐỦ 3 MỨC ĐỘ NỘI DUNG CỨNG KHẢO THÍ GDPT 2018:
-1. Mức "Biết" (Nhận biết): Động từ hành vi như nêu, kể tên, nhận biết, liệt kê, gọi tên, định nghĩa...
-2. Mức "Hiểu" (Thông hiểu): Động từ hành vi như giải thích, mô tả, so sánh, phân biệt, tóm tắt, minh họa...
-3. Mức "V.Dung" / "Vận dụng" (Vận dụng & Vận dụng cao): Động từ hành vi như vận dụng, tính toán, đề xuất, phân tích, giải quyết bài tập / tình huống thực tế...
+2. TỰ ĐỘNG NHẬN DIỆN BỘ SÁCH GIÁO KHOA ("textbook"):
+   CHỌN CHUẨN XÁC 1 TRONG CÁC BỘ SÁCH SAU:
+   - "Kết nối tri thức với cuộc sống": nếu có cụm từ Kết nối tri thức, KNTT, NXB Giáo dục Việt Nam...
+   - "Cánh diều": nếu có Cánh diều, VEPIC...
+   - "Chân trời sáng tạo": nếu có Chân trời sáng tạo, CTST...
+   - "Tự do / Chung các bộ sách": nếu không xác định được bộ sách cụ thể.
 
-NẾU TÀI LIỆU CHƯA NÊU ĐỦ 3 MỨC NÀY, BẠN PHẢI TỰ ĐỘNG BỔ SUNG CÁC YCCĐ CHO ĐỦ CẢ 3 MỨC "Biết", "Hiểu", "V.Dung" CHO MỖI NỘI DUNG/BÀI HỌC!
+3. TỰ ĐỘNG NHẬN DIỆN KHỐI LỚP ("khoi") VÀ CẤP HỌC ("cap"):
+   - "khoi": '6', '7', '8', '9', '10', '11', '12' (dựa trên tên file, tiêu đề hoặc nội dung bài học).
+   - "cap": 'THPT' (khối 10-12) hoặc 'THCS' (khối 6-9).
 
-THÔNG TIN ĐẦU VÀO:
-- Môn: ${config.subject || 'Tự nhận diện'}
-- Khối lớp: ${config.grade || 'Tự nhận diện'}
-- Tài liệu đính kèm:
+4. TRÍCH XUẤT CHỦ ĐỀ, NỘI DUNG VÀ ĐỦ 3 MỨC ĐỘ YCCĐ (Biết, Hiểu, V.Dung):
+   - Mỗi nội dung BẮT BUỘC PHẢI CÓ ĐỦ 3 MỨC YCCĐ: "Biết", "Hiểu", "V.Dung".
+   - Tên nội dung / bài học phải giữ nguyên vẹn 100% tên bài từ tài liệu (VD: "BÀI 1: DAO ĐỘNG ĐIỀU HÒA").
+
+THÔNG TIN TÀI LIỆU NẠP VÀO:
+- Gợi ý phân tích ban đầu từ heuristic: Môn ${heuristic.subject}, Bộ sách ${heuristic.textbook}${heuristic.grade ? `, Lớp ${heuristic.grade}` : ''}
+- Danh sách tài liệu đính kèm:
 ${docs.map((d, i) => `File ${i + 1} (${d.name}): ${(d.content || '').slice(0, 8000)}`).join('\n---\n')}
 
 RÀNG BUỘC NGHIÊM NGẶT SCHEMA JSON:
-1. "chuDe": Mảng danh sách các Chủ đề / Chương (1-30). GIỮ NGUYÊN VĂN 100% ĐẦY ĐỦ TÊN BÀI HỌC VÀ CHƯƠNG TỪ TÀI LIỆU, KHÔNG ĐƯỢC TÓM TẮT HOẶC CẮT BỚT.
-2. "noiDung": Mỗi chủ đề có mảng các "Nội dung / đơn vị kiến thức" (1-30). TÊN NỘI DUNG / BÀI HỌC PHẢI CHÍNH XÁC NGUYÊN VĂN ĐẦY ĐỦ GIỐNG HỆT TÊN TÀI LIỆU VÀ TÊN BÀI ĐƯỢC GỬI LÊN (VD: "BÀI 1 - KHÁI QUÁT VỀ CƠ KHÍ CHẾ TẠO"), TUYỆT ĐỐI KHÔNG RÚT GỌN HOẶC BỎ BỚT TỪ.
-3. "yccd": Mỗi Nội dung có danh sách các Yêu cầu cần đạt trích xuất hoặc bổ sung đủ 3 mức (Biết, Hiểu, V.Dung). Mã YCCĐ đánh số theo nội dung (VD: ND1.1, ND1.2, ND1.3).
-4. Động từ hành vi ("dongTu") trích từ YCCĐ (nêu, giải thích, vận dụng...).
-5. TUYỆT ĐỐI KHÔNG CHÈN BẤT KỲ KÝ HIỆU LẠ HOẶC NHÃN NHƯ [?] VÀO ĐẦU HOẶC TRONG NỘI DUNG YCCĐ.
-
-TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
+TRẢ VỀ DUY NHẤT MỘT JSON OBJECT CÓ CẤU TRÚC:
 {
   "cap": "THPT" | "THCS",
-  "khoi": "10-12 hoặc 6-9",
-  "mon": "Tên môn học",
+  "khoi": "12",
+  "mon": "Tên môn học chuẩn trong danh sách trên",
+  "textbook": "Tên bộ sách chuẩn trong danh sách trên",
   "chuDe": [
     {
       "id": "CD1",
@@ -116,22 +145,22 @@ TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
       "noiDung": [
         {
           "id": "ND1",
-          "ten": "Tên Nội dung / đơn vị kiến thức 1",
+          "ten": "Tên Bài học / đơn vị kiến thức 1",
           "trongSo": 1,
           "yccd": [
             {
               "ma": "ND1.1",
-              "noiDung": "Nêu/nhận biết được các khái niệm cơ bản...",
+              "noiDung": "Nêu/nhận biết được...",
               "dongTu": "nêu"
             },
             {
               "ma": "ND1.2",
-              "noiDung": "Giải thích/phân biệt được nguyên lý, bản chất...",
+              "noiDung": "Giải thích/phân biệt được...",
               "dongTu": "giải thích"
             },
             {
               "ma": "ND1.3",
-              "noiDung": "Vận dụng kiến thức để giải quyết bài tập...",
+              "noiDung": "Vận dụng kiến thức để giải quyết...",
               "dongTu": "vận dụng"
             }
           ]
@@ -290,10 +319,17 @@ TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
       });
     });
 
+    // Chuẩn hóa môn học và bộ sách trích xuất từ Gemini hoặc kết hợp Heuristic
+    const finalMon = normalizeSubject(rootObj?.mon || heuristic.subject);
+    const finalTextbook = normalizeTextbook(rootObj?.textbook || heuristic.textbook);
+    const finalKhoi = String(rootObj?.khoi || heuristic.grade || config.grade || '12');
+    const finalCap = (rootObj?.cap as GradeLevel) || heuristic.gradeLevel || (config.gradeLevel as GradeLevel) || 'THPT';
+
     return {
-      cap: (rootObj && rootObj.cap) || (config.gradeLevel as GradeLevel) || 'THPT',
-      khoi: String((rootObj && rootObj.khoi) || config.grade || '12'),
-      mon: (rootObj && rootObj.mon) || config.subject || 'Toán học',
+      cap: finalCap,
+      khoi: finalKhoi,
+      mon: finalMon,
+      textbook: finalTextbook,
       chuDeList,
       rawTopicsStr: cleanTopics.join('\n'),
       rawOutcomesStr: cleanOutcomes.join('\n'),
@@ -303,9 +339,10 @@ TRẢ VỀ DUY NHẤT MỘT JSON OBJECT:
     console.error('Structured extraction error caught gracefully:', err);
     const defaultName = docs[0]?.name ? docs[0].name.replace(/\.[^/.]+$/, '').trim() : 'Bài học trích xuất từ tài liệu';
     return {
-      cap: (config.gradeLevel as GradeLevel) || 'THPT',
-      khoi: String(config.grade || '12'),
-      mon: config.subject || 'Toán học',
+      cap: heuristic.gradeLevel || (config.gradeLevel as GradeLevel) || 'THPT',
+      khoi: String(heuristic.grade || config.grade || '12'),
+      mon: normalizeSubject(heuristic.subject || config.subject || 'Toán học'),
+      textbook: normalizeTextbook(heuristic.textbook || config.textbook || 'Kết nối tri thức với cuộc sống'),
       chuDeList: [
         {
           id: 'CD1',

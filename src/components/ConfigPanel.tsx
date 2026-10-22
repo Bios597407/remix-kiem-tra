@@ -33,6 +33,7 @@ import { CurriculumTopic } from '../data/curriculumStandards';
 import LuatConfigForm from './LuatConfigForm';
 import GradeTabBar from './GradeTabBar';
 import { PRESETS } from '../utils/cv7991Engine';
+import { inferSubjectAndTextbook } from '../utils/subjectInference';
 
 interface ConfigPanelProps {
   config: ExamConfig;
@@ -86,7 +87,45 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const [analysisProgress, setAnalysisProgress] = useState('');
   const [showCurriculumModal, setShowCurriculumModal] = useState(false);
   const [showDetailedLuat, setShowDetailedLuat] = useState(false);
+  const [showLessonDetails, setShowLessonDetails] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [aiDetectedInfo, setAiDetectedInfo] = useState<{
+    subject: string;
+    textbook: string;
+    grade?: string;
+    isAi: boolean;
+  } | null>(null);
+
+  const handleReInferSubjectAndTextbook = () => {
+    if (!config.uploadedDocs || config.uploadedDocs.length === 0) {
+      toast.info('Chưa có tài liệu đính kèm để nhận diện. Vui lòng tải tài liệu lên trước!');
+      return;
+    }
+    const combinedText = config.uploadedDocs.map((d) => d.content).join('\n\n');
+    const combinedNames = config.uploadedDocs.map((d) => d.name).join(' ');
+    const inferred = inferSubjectAndTextbook(combinedText, combinedNames);
+
+    setAiDetectedInfo({
+      subject: inferred.subject,
+      textbook: inferred.textbook,
+      grade: inferred.grade,
+      isAi: false,
+    });
+
+    onChangeConfig({
+      ...config,
+      subject: inferred.subject,
+      textbook: inferred.textbook,
+      grade: inferred.grade || config.grade,
+      gradeLevel: inferred.gradeLevel || config.gradeLevel,
+    });
+
+    if (inferred.grade && inferred.grade !== config.grade) {
+      onAddTab(inferred.grade);
+    }
+
+    toast.success(`🎯 AI đã nhận diện lại từ tài liệu: Môn "${inferred.subject}" • Bộ sách "${inferred.textbook}"!`);
+  };
 
   const subjectOptions = [
     'Toán học',
@@ -224,6 +263,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       readingPassage: fileContentStr || config.readingPassage || '',
     });
 
+    setShowLessonDetails(true);
     toast.success('✨ Đã nạp thành công dữ liệu từ Nguồn học liệu & YCCĐ sang Nội dung Bài học!');
   };
 
@@ -277,9 +317,22 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     const fileTitles = newDocs.map((d) => d.name.replace(/\.[^/.]+$/, '')).join('\n');
     const fullTextContent = newDocs.map((d) => d.content).join('\n\n');
 
+    // Tự động nhận diện nhanh Môn học & Bộ sách ngay khi nạp file
+    const instantInfer = inferSubjectAndTextbook(fullTextContent, fileTitles);
+    setAiDetectedInfo({
+      subject: instantInfer.subject,
+      textbook: instantInfer.textbook,
+      grade: instantInfer.grade,
+      isAi: false,
+    });
+
     onChangeConfig({
       ...config,
       uploadedDocs: newDocs,
+      subject: instantInfer.subject || config.subject,
+      textbook: instantInfer.textbook || config.textbook,
+      grade: instantInfer.grade || config.grade,
+      gradeLevel: instantInfer.gradeLevel || config.gradeLevel,
       topicTitle: config.topicTitle ? `${config.topicTitle}\n${fileTitles}`.trim() : fileTitles,
       chapter: config.chapter ? config.chapter : 'Chương I',
       knowledgeScope: config.knowledgeScope ? config.knowledgeScope : 'Chương I',
@@ -392,12 +445,20 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         )
         .join('\n\n');
 
+      setAiDetectedInfo({
+        subject: result.mon,
+        textbook: result.textbook,
+        grade: result.khoi,
+        isAi: true,
+      });
+
       onChangeConfig({
         ...config,
         uploadedDocs: docsToAnalyze,
         gradeLevel: result.cap,
         grade: result.khoi,
         subject: result.mon,
+        textbook: result.textbook,
         topicTitle: result.rawTopicsStr || topicLines,
         chapter: chapterLines || 'Chương I',
         knowledgeScope: chapterLines || 'Chương I',
@@ -405,7 +466,13 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         readingPassage: result.readingPassageStr,
       });
 
-      toast.success(`🎉 Trích xuất thành công! Đã tự động nạp đầy đủ vào "Nội dung bài học & YCCĐ".`);
+      setShowLessonDetails(true);
+
+      if (result.khoi && result.khoi !== config.grade) {
+        onAddTab(result.khoi);
+      }
+
+      toast.success(`🎉 AI đã nhận diện thành công: Môn "${result.mon}" • Bộ sách "${result.textbook}"! Đã đồng bộ vào Thông tin kỳ thi.`);
     } catch (err: any) {
       console.error('Analyze error:', err);
       toast.error(`Lỗi phân tích: ${err.message}`);
@@ -538,37 +605,75 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       {/* Main Horizontal Content (When Not Collapsed) */}
       {!isCollapsed && (
         <div className="p-4 sm:p-5 space-y-4">
-          {/* 3 Horizontal Modular Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {/* CARD 1: THÔNG TIN KỲ THI & TRƯỜNG HỌC */}
-            <div className="rounded-xl border border-indigo-100 bg-gradient-to-b from-indigo-50/50 to-white p-4 space-y-3 shadow-2xs flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
-                  <div className="flex items-center space-x-2">
-                    <GraduationCap className="h-4 w-4 text-indigo-700 shrink-0" />
-                    <h3 className="text-xs font-black uppercase text-indigo-950 tracking-wider">
+          {/* 3 Horizontal Modular Cards - Guaranteed 1 Row on Desktop */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 xl:gap-5 items-stretch">
+            {/* CARD 1: THÔNG TIN KỲ THI & ĐỀ KIỂM TRA */}
+            <div className="rounded-xl border border-indigo-200/90 bg-gradient-to-b from-indigo-50/40 via-white to-white p-4 space-y-3 shadow-sm flex flex-col justify-between transition-all hover:border-indigo-300">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between border-b border-indigo-100 pb-2.5">
+                  <div className="flex items-center space-x-2 min-w-0">
+                    <div className="p-1 bg-indigo-100 text-indigo-700 rounded-lg shrink-0">
+                      <GraduationCap className="h-4 w-4" />
+                    </div>
+                    <h3 className="text-xs font-black uppercase text-indigo-950 tracking-wider truncate">
                       THÔNG TIN KỲ THI & ĐỀ KIỂM TRA
                     </h3>
                   </div>
-                  <span className="px-2 py-0.5 bg-indigo-100/80 text-indigo-800 rounded-full text-[10px] font-bold">
-                    {config.gradeLevel || 'THPT'} • Lớp {config.grade || '12'}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {config.uploadedDocs && config.uploadedDocs.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleReInferSubjectAndTextbook}
+                        className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                        title="AI phân tích tài liệu để tự động suy luận lại Môn học và Bộ sách"
+                      >
+                        <Sparkles className="w-3 h-3 text-emerald-600" />
+                        <span className="hidden sm:inline">AI dò môn & sách</span>
+                      </button>
+                    )}
+                    <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full text-[10px] font-bold shrink-0">
+                      {config.gradeLevel || 'THPT'} • Lớp {config.grade || '12'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                {/* Banner Thông báo AI Nhận diện từ tài liệu */}
+                {aiDetectedInfo && (
+                  <div className="rounded-lg bg-emerald-50/90 border border-emerald-200 px-2.5 py-1.5 flex items-center justify-between text-[11px] text-emerald-900 animate-in fade-in">
+                    <div className="flex items-center gap-1.5 font-medium truncate">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span className="truncate">
+                        AI đã nhận diện: <strong>{aiDetectedInfo.subject}</strong> • <strong>{aiDetectedInfo.textbook}</strong>
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0 ml-1.5">
+                      {aiDetectedInfo.isAi ? 'Gemini AI' : 'Tự động quét'}
+                    </span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">Trường / Đơn vị:</label>
                     <input
                       type="text"
                       value={config.schoolName}
                       onChange={(e) => onChangeConfig({ ...config, schoolName: e.target.value })}
-                      placeholder="VD: TRƯỜNG THPT VÕ TRƯỜNG TOẢN"
+                      placeholder="VD: THPT VÕ TRƯỜNG TOẢN"
                       className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-medium text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Môn học hiện tại:</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-semibold text-slate-600">Môn học hiện tại:</label>
+                      {aiDetectedInfo?.subject === config.subject && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-300">
+                          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                          AI nhận diện
+                        </span>
+                      )}
+                    </div>
                     <select
                       value={config.subject}
                       onChange={(e) => onChangeConfig({ ...config, subject: e.target.value })}
@@ -592,7 +697,15 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Bộ sách:</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-semibold text-slate-600">Bộ sách:</label>
+                      {aiDetectedInfo?.textbook === config.textbook && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-indigo-800 bg-indigo-100 px-1.5 py-0.2 rounded border border-indigo-300">
+                          <Sparkles className="w-2.5 h-2.5 text-indigo-600" />
+                          Khớp sách
+                        </span>
+                      )}
+                    </div>
                     <select
                       value={config.textbook}
                       onChange={(e) => onChangeConfig({ ...config, textbook: e.target.value })}
@@ -622,38 +735,40 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-indigo-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+              <div className="pt-2.5 border-t border-indigo-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
                 <span>Năm học: <strong>{config.academicYear}</strong></span>
                 <span>Thang điểm: <strong>{config.totalScore || 10} điểm</strong></span>
               </div>
             </div>
 
-            {/* CARD 2: TÀI LIỆU HỌC TẬP & YCCĐ */}
-            <div className="rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/50 to-white p-4 space-y-3 shadow-2xs flex flex-col justify-between">
+            {/* CARD 2: NGUỒN HỌC LIỆU & YCCĐ */}
+            <div className="rounded-xl border border-blue-200/90 bg-gradient-to-b from-blue-50/40 via-white to-white p-4 space-y-3 shadow-sm flex flex-col justify-between transition-all hover:border-blue-300">
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <div className="flex items-center space-x-2">
-                    <FileText className="h-4 w-4 text-blue-600 shrink-0" />
-                    <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                <div className="flex items-center justify-between border-b border-blue-100 pb-2.5">
+                  <div className="flex items-center space-x-2 min-w-0">
+                    <div className="p-1 bg-blue-100 text-blue-700 rounded-lg shrink-0">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <h3 className="text-xs font-black uppercase text-blue-950 tracking-wider truncate">
                       NGUỒN HỌC LIỆU & YCCĐ
                     </h3>
                   </div>
                   {isAnalyzingLesson ? (
-                    <span className="px-2.5 py-1 bg-purple-600 text-white rounded-full text-[11px] font-extrabold flex items-center gap-1 shadow-2xs animate-pulse">
-                      <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                    <span className="px-2 py-0.5 bg-purple-600 text-white rounded-full text-[10px] font-extrabold flex items-center gap-1 shadow-2xs animate-pulse shrink-0">
+                      <Sparkles className="w-3 h-3 text-yellow-300" />
                       <span>Đang trích xuất...</span>
                     </span>
                   ) : (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
                         onClick={handleSyncDocsToLessonFields}
                         disabled={!config.uploadedDocs || config.uploadedDocs.length === 0}
-                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[11px] font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                        className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
                         title="Đồng bộ nạp dữ liệu từ file đính kèm sang Nội dung Bài học & YCCĐ"
                       >
                         <Download className="w-3 h-3" />
-                        <span>Nạp vào Nội dung & YCCĐ</span>
+                        <span>Nạp YCCĐ</span>
                       </button>
 
                       {config.uploadedDocs && config.uploadedDocs.length > 0 && (
@@ -661,7 +776,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                           type="button"
                           onClick={() => handleAnalyzeDocs()}
                           disabled={isAnalyzingLesson || uploading}
-                          className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-[11px] font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-[10px] font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
                         >
                           <Wand2 className="w-3 h-3" />
                           <span>Phân tích AI</span>
@@ -671,7 +786,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   )}
                 </div>
 
-                {/* Dropzone with Drag & Drop - Blurred & Locked during extraction */}
+                {/* Dropzone with Drag & Drop */}
                 <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
@@ -681,7 +796,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       fileInputRef.current?.click();
                     }
                   }}
-                  className={`border-2 border-dashed rounded-xl p-3 text-center transition ${
+                  className={`border-2 border-dashed rounded-xl p-2.5 text-center transition ${
                     isAnalyzingLesson || uploading
                       ? 'border-slate-300 bg-slate-100/90 opacity-40 filter blur-[0.5px] pointer-events-none cursor-not-allowed'
                       : isDragging
@@ -699,19 +814,19 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                     className="hidden"
                   />
                   <div className="flex items-center justify-center gap-2">
-                    <Upload className={`w-5 h-5 transition-transform ${isDragging ? 'text-blue-700 scale-125' : 'text-blue-600 group-hover:scale-110'}`} />
+                    <Upload className={`w-4 h-4 transition-transform ${isDragging ? 'text-blue-700 scale-125' : 'text-blue-600 group-hover:scale-110'}`} />
                     <span className="text-xs font-bold text-slate-700 group-hover:text-blue-700">
-                      {isDragging ? 'Thả toàn bộ file vào đây...' : 'Tải file Word (.docx, .doc), PDF, Ảnh, TXT'}
+                      {isDragging ? 'Thả toàn bộ file vào đây...' : 'Tải file Word (.docx), PDF, Ảnh, TXT'}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Hỗ trợ chọn hoặc kéo thả nhiều file cùng lúc (Bài 1, Bài 2, v.v.)
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Hỗ trợ chọn hoặc kéo thả nhiều file (Bài 1, Bài 2, đề cương...)
                   </p>
                 </div>
 
-                {/* Attached Docs List */}
+                {/* Attached Docs List with max height limit */}
                 {config.uploadedDocs && config.uploadedDocs.length > 0 ? (
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                  <div className="space-y-1.5 max-h-[145px] overflow-y-auto pr-1 custom-scrollbar">
                     {config.uploadedDocs.map((doc, idx) => {
                       const isCurrentExtracting = isAnalyzingLesson && (extractingFileIndex === idx || (extractingFileIndex === -1 && idx === 0));
                       const isCompleted = completedFileIndices.includes(idx);
@@ -719,24 +834,24 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       return (
                         <div
                           key={doc.id || idx}
-                          className={`p-3 rounded-xl border text-xs transition-all ${
+                          className={`p-2 rounded-lg border text-xs transition-all ${
                             isCurrentExtracting
                               ? 'bg-purple-50/60 border-purple-300 shadow-2xs'
                               : isCompleted
                               ? 'bg-emerald-50/40 border-emerald-200'
-                              : 'bg-slate-100/80 border-slate-200 hover:bg-slate-200/60'
+                              : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="flex items-start gap-2 min-w-0 flex-1 pr-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
                               {isCurrentExtracting ? (
-                                <FileText className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                                <FileText className="w-3.5 h-3.5 text-purple-600 shrink-0 animate-pulse" />
                               ) : isCompleted ? (
-                                <FileCheck2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                <FileCheck2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               ) : (
-                                <FileText className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                               )}
-                              <span className="font-black text-slate-900 text-xs leading-normal break-words">
+                              <span className="font-semibold text-slate-800 text-[11px] truncate" title={doc.name}>
                                 {doc.name}
                               </span>
                             </div>
@@ -744,30 +859,28 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                               type="button"
                               onClick={() => removeDoc(idx)}
                               disabled={isAnalyzingLesson}
-                              className="text-slate-400 hover:text-rose-600 p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                              className="text-slate-400 hover:text-rose-600 p-0.5 rounded disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
                               title="Xóa tài liệu này"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
 
-                          {/* Live Progress Bar and Status Message under extracting file matching image_b45a100d.png */}
+                          {/* Live Progress Bar during extraction */}
                           {isCurrentExtracting && (
-                            <div className="mt-2 pt-2 border-t border-purple-200/80 space-y-1.5">
-                              <div className="flex items-center justify-between text-[11px] font-extrabold text-purple-900">
-                                <span className="flex items-center gap-1.5 truncate">
-                                  <Sparkles className="w-3.5 h-3.5 text-purple-600 animate-spin shrink-0" />
-                                  <span>
-                                    Đang trích xuất <strong className="text-purple-950 font-black">{doc.name}</strong>
-                                  </span>
+                            <div className="mt-1.5 pt-1.5 border-t border-purple-200/80 space-y-1">
+                              <div className="flex items-center justify-between text-[10px] font-extrabold text-purple-900">
+                                <span className="flex items-center gap-1 truncate">
+                                  <Sparkles className="w-3 h-3 text-purple-600 animate-spin shrink-0" />
+                                  <span className="truncate">Đang phân tích {doc.name}</span>
                                 </span>
-                                <span className="text-purple-700 font-extrabold text-xs shrink-0 ml-2">
+                                <span className="text-purple-700 font-extrabold text-[11px] shrink-0 ml-1">
                                   {currentFileProgress || 93}%
                                 </span>
                               </div>
-                              <div className="w-full bg-purple-200/70 rounded-full h-2 overflow-hidden">
+                              <div className="w-full bg-purple-200/70 rounded-full h-1.5 overflow-hidden">
                                 <div
-                                  className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 h-2 rounded-full transition-all duration-300 ease-out shadow-2xs"
+                                  className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 h-1.5 rounded-full transition-all duration-300 ease-out"
                                   style={{ width: `${currentFileProgress || 93}%` }}
                                 />
                               </div>
@@ -786,26 +899,28 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                <span>Chủ đề ma trận hiện có: <strong>{chuDeList.length}</strong></span>
+              <div className="pt-2.5 border-t border-blue-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <span>Chủ đề ma trận: <strong>{chuDeList.length}</strong></span>
                 <span>Tài liệu đã đính kèm: <strong>{config.uploadedDocs?.length || 0} file</strong></span>
               </div>
             </div>
 
-            {/* CARD 3: CẤU TRÚC ĐỀ & LUẬT THẨM ĐỊNH (CV 7991) */}
-            <div className="rounded-xl border border-amber-200/80 bg-gradient-to-b from-amber-50/40 to-white p-4 space-y-3 shadow-2xs flex flex-col justify-between">
+            {/* CARD 3: CẤU TRÚC ĐỀ & THẨM ĐỊNH CV 7991 */}
+            <div className="rounded-xl border border-amber-200/90 bg-gradient-to-b from-amber-50/40 via-white to-white p-4 space-y-3 shadow-sm flex flex-col justify-between transition-all hover:border-amber-300">
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
-                  <div className="flex items-center space-x-2">
-                    <Sliders className="h-4 w-4 text-amber-700 shrink-0" />
-                    <h3 className="text-xs font-black uppercase text-amber-950 tracking-wider">
+                <div className="flex items-center justify-between border-b border-amber-100 pb-2.5">
+                  <div className="flex items-center space-x-2 min-w-0">
+                    <div className="p-1 bg-amber-100 text-amber-700 rounded-lg shrink-0">
+                      <Sliders className="h-4 w-4" />
+                    </div>
+                    <h3 className="text-xs font-black uppercase text-amber-950 tracking-wider truncate">
                       CẤU TRÚC ĐỀ & THẨM ĐỊNH CV 7991
                     </h3>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowDetailedLuat(!showDetailedLuat)}
-                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 cursor-pointer shrink-0"
                   >
                     <span>{showDetailedLuat ? 'Đóng chi tiết' : 'Cấu hình chi tiết'}</span>
                     {showDetailedLuat ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -823,7 +938,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                         key={key}
                         type="button"
                         onClick={() => handleQuickPreset(key)}
-                        className={`px-2 py-1.5 rounded-lg border text-left transition flex items-center justify-between text-[11px] ${
+                        className={`px-2 py-1.5 rounded-lg border text-left transition flex items-center justify-between text-[11px] cursor-pointer ${
                           luat.presetName === key
                             ? 'border-indigo-600 bg-indigo-50 text-indigo-950 font-bold shadow-2xs'
                             : 'border-slate-200 bg-white hover:bg-slate-100 text-slate-700'
@@ -837,47 +952,61 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
 
                 {/* 4-Part Structure Pill Strip */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center">
-                  <div className="p-1.5 bg-blue-50/80 rounded-lg border border-blue-200/70">
-                    <p className="text-[10px] text-blue-700 font-bold">Nhiều lựa chọn</p>
-                    <p className="text-xs font-black text-blue-900">{luat.nlcCount} câu ({calcNlcScore}đ)</p>
+                  <div className="p-1.5 bg-blue-50/90 rounded-lg border border-blue-200/70">
+                    <p className="text-[10px] text-blue-700 font-bold truncate">Nhiều lựa chọn</p>
+                    <p className="text-xs font-black text-blue-900">{luat.nlcCount}c ({calcNlcScore}đ)</p>
                   </div>
 
-                  <div className="p-1.5 bg-indigo-50/80 rounded-lg border border-indigo-200/70">
-                    <p className="text-[10px] text-indigo-700 font-bold">Đúng – Sai</p>
-                    <p className="text-xs font-black text-indigo-900">{luat.dsCount} câu ({calcDsScore}đ)</p>
+                  <div className="p-1.5 bg-indigo-50/90 rounded-lg border border-indigo-200/70">
+                    <p className="text-[10px] text-indigo-700 font-bold truncate">Đúng – Sai</p>
+                    <p className="text-xs font-black text-indigo-900">{luat.dsCount}c ({calcDsScore}đ)</p>
                   </div>
 
-                  <div className="p-1.5 bg-teal-50/80 rounded-lg border border-teal-200/70">
-                    <p className="text-[10px] text-teal-700 font-bold">Trả lời ngắn</p>
-                    <p className="text-xs font-black text-teal-900">{luat.tlnCount} câu ({calcTlnScore}đ)</p>
+                  <div className="p-1.5 bg-teal-50/90 rounded-lg border border-teal-200/70">
+                    <p className="text-[10px] text-teal-700 font-bold truncate">Trả lời ngắn</p>
+                    <p className="text-xs font-black text-teal-900">{luat.tlnCount}c ({calcTlnScore}đ)</p>
                   </div>
 
-                  <div className="p-1.5 bg-purple-50/80 rounded-lg border border-purple-200/70">
-                    <p className="text-[10px] text-purple-700 font-bold">Tự luận</p>
-                    <p className="text-xs font-black text-purple-900">{luat.tlCount} câu ({calcTlScore}đ)</p>
+                  <div className="p-1.5 bg-purple-50/90 rounded-lg border border-purple-200/70">
+                    <p className="text-[10px] text-purple-700 font-bold truncate">Tự luận</p>
+                    <p className="text-xs font-black text-purple-900">{luat.tlCount}c ({calcTlScore}đ)</p>
                   </div>
                 </div>
               </div>
 
-              {/* Cognitive level breakdown */}
-              <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between text-[11px] text-slate-700 font-semibold">
-                <span>Biết: <strong>{luat.bietTarget}đ</strong></span>
-                <span>Hiểu: <strong>{luat.hieuTarget}đ</strong></span>
-                <span>Vận dụng: <strong>{luat.vanDungTarget}đ</strong></span>
-                <span className="text-indigo-700 font-bold">Tổng: 10,0đ</span>
+              {/* Cognitive level breakdown & status */}
+              <div className="pt-2.5 border-t border-amber-100 flex items-center justify-between text-[11px] text-slate-700 font-semibold">
+                <div className="flex items-center gap-2">
+                  <span>Biết: <strong>{luat.bietTarget}đ</strong></span>
+                  <span>Hiểu: <strong>{luat.hieuTarget}đ</strong></span>
+                  <span>VD: <strong>{luat.vanDungTarget}đ</strong></span>
+                </div>
+                <span className="text-indigo-800 font-black bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 text-[10px]">
+                  Tổng 10,0đ
+                </span>
               </div>
             </div>
           </div>
 
-          {/* BLOCK 3: NỘI DUNG BÀI HỌC & YÊU CẦU CẦN ĐẠT (Matching Hình 2) */}
-          <div className="rounded-xl border border-blue-200/90 bg-white p-4 space-y-3 shadow-2xs transition-all">
+          {/* BLOCK 3: NỘI DUNG BÀI HỌC & YÊU CẦU CẦN ĐẠT (Collapsible & Clean) */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-2xs transition-all">
             {/* Block Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
               <div className="flex items-center space-x-2">
-                <BookOpen className="h-4.5 w-4.5 text-blue-600 shrink-0" />
+                <BookOpen className="h-4 w-4 text-blue-600 shrink-0" />
                 <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
                   NỘI DUNG BÀI HỌC & YÊU CẦU CẦN ĐẠT
                 </h3>
+                {config.topicTitle && (
+                  <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-bold border border-blue-200">
+                    {config.topicTitle.split('\n').filter(Boolean).length} bài học
+                  </span>
+                )}
+                {config.learningOutcomes && (
+                  <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-[10px] font-bold border border-purple-200">
+                    {config.learningOutcomes.split('\n').filter(Boolean).length} YCCĐ
+                  </span>
+                )}
               </div>
 
               {/* Right Action Buttons */}
@@ -890,7 +1019,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                     title="Xóa toàn bộ nội dung bài cũ"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                    <span>Xóa toàn bộ nội dung bài cũ</span>
+                    <span>Xóa nội dung</span>
                   </button>
                 )}
 
@@ -921,13 +1050,24 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[11px] font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
                 >
                   <Wand2 className="w-3.5 h-3.5" />
-                  <span>AI Đề xuất Nội dung</span>
+                  <span>AI Đề xuất</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowLessonDetails(!showLessonDetails)}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                  title={showLessonDetails ? 'Thu gọn chi tiết bài học & YCCĐ' : 'Mở rộng chi tiết bài học & YCCĐ'}
+                >
+                  <span>{showLessonDetails ? 'Thu gọn' : 'Mở rộng chi tiết'}</span>
+                  {showLessonDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
 
-            {/* 3 Columns Input Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
+            {/* 3 Columns Input Area (Collapsible) */}
+            {showLessonDetails && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs pt-1">
               {/* Column 1: Tên bài & Chương */}
               <div className="space-y-3 flex flex-col justify-between">
                 <div>
@@ -1017,7 +1157,8 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 />
               </div>
             </div>
-          </div>
+          )}
+        </div>
 
           {/* Expandable Detailed LuatConfigForm Full-Width */}
           {showDetailedLuat && (

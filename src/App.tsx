@@ -347,6 +347,9 @@ export default function App() {
             <ConfigPanel
               config={config}
               onChangeConfig={(newCfg) => {
+                if (newCfg.gradeLevel && newCfg.gradeLevel !== gradeLevel) {
+                  setGradeLevel(newCfg.gradeLevel);
+                }
                 updateCurrentTabState((prev) => ({
                   ...prev,
                   subject: newCfg.subject,
