@@ -143,7 +143,7 @@ export function buildComparisonMatrixDocx(
           children: [
             new Paragraph({
               alignment: AlignmentType.CENTER,
-              children: [new TextRun({ text: `Câu ${row.baseStt}`, font: FONT_FAMILY, size: 20, bold: true })],
+              children: [new TextRun({ text: `Câu ${row.baseSttInPart ?? row.baseStt}`, font: FONT_FAMILY, size: 20, bold: true })],
             }),
           ],
         }),
@@ -182,7 +182,8 @@ export function buildComparisonMatrixDocx(
         }),
         ...variantCodes.map((code) => {
           const varInfo = row.variants[code];
-          const displayTxt = varInfo ? `(C.${varInfo.stt}) ${varInfo.answer}` : '-';
+          const displayNum = varInfo ? (varInfo.sttInPart ?? varInfo.stt) : 0;
+          const displayTxt = varInfo ? `(C.${displayNum}) ${varInfo.answer}` : '-';
           return new TableCell({
             width: { size: colVarW, type: WidthType.DXA },
             verticalAlign: VerticalAlign.CENTER,

@@ -380,8 +380,6 @@ export function buildStandardExamDocx(
     })
   );
 
-  let questionCounter = 1;
-
   // ==========================================
   // PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN
   // ==========================================
@@ -404,7 +402,7 @@ export function buildStandardExamDocx(
         keepNext: true,
         children: [
           new TextRun({
-            text: `Thí sinh chọn một phương án trả lời đúng duy nhất trong mỗi câu hỏi từ Câu ${questionCounter} đến Câu ${questionCounter + p1Questions.length - 1}.`,
+            text: `Thí sinh chọn một phương án trả lời đúng duy nhất trong mỗi câu hỏi từ Câu 1 đến Câu ${p1Questions.length}.`,
             font: FONT_FAMILY,
             size: FONT_SIZE_12PT,
             italics: true,
@@ -413,8 +411,9 @@ export function buildStandardExamDocx(
       })
     );
 
+    let p1Counter = 1;
     for (const q of p1Questions) {
-      const qNum = questionCounter++;
+      const qNum = p1Counter++;
       const cleanedQuestion = formatLatexToUnicode(q.question);
 
       // Question passage if present
@@ -647,7 +646,7 @@ export function buildStandardExamDocx(
         keepNext: true,
         children: [
           new TextRun({
-            text: `Thí sinh trả lời từ Câu ${questionCounter} đến Câu ${questionCounter + p2Questions.length - 1}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.`,
+            text: `Thí sinh trả lời từ Câu 1 đến Câu ${p2Questions.length}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.`,
             font: FONT_FAMILY,
             size: FONT_SIZE_12PT,
             italics: true,
@@ -656,8 +655,9 @@ export function buildStandardExamDocx(
       })
     );
 
+    let p2Counter = 1;
     for (const q of p2Questions) {
-      const qNum = questionCounter++;
+      const qNum = p2Counter++;
       const cleanedQuestion = formatLatexToUnicode(q.question);
 
       children.push(
@@ -737,7 +737,7 @@ export function buildStandardExamDocx(
         keepNext: true,
         children: [
           new TextRun({
-            text: `Thí sinh trả lời từ Câu ${questionCounter} đến Câu ${questionCounter + p3Questions.length - 1}. Thí sinh viết câu trả lời ngắn vào phiếu làm bài.`,
+            text: `Thí sinh trả lời từ Câu 1 đến Câu ${p3Questions.length}. Thí sinh viết câu trả lời ngắn vào phiếu làm bài.`,
             font: FONT_FAMILY,
             size: FONT_SIZE_12PT,
             italics: true,
@@ -746,8 +746,9 @@ export function buildStandardExamDocx(
       })
     );
 
+    let p3Counter = 1;
     for (const q of p3Questions) {
-      const qNum = questionCounter++;
+      const qNum = p3Counter++;
       const cleanedQuestion = formatLatexToUnicode(q.question);
 
       children.push(
@@ -793,7 +794,7 @@ export function buildStandardExamDocx(
         keepNext: true,
         children: [
           new TextRun({
-            text: 'Thí sinh trình bày chi tiết lời giải các câu hỏi sau vào giấy làm bài.',
+            text: `Thí sinh trình bày chi tiết lời giải từ Câu 1 đến Câu ${p4Questions.length} vào giấy làm bài.`,
             font: FONT_FAMILY,
             size: FONT_SIZE_12PT,
             italics: true,
@@ -802,8 +803,9 @@ export function buildStandardExamDocx(
       })
     );
 
+    let p4Counter = 1;
     for (const q of p4Questions) {
-      const qNum = questionCounter++;
+      const qNum = p4Counter++;
       const qScore = q.score || 1.0;
       const cleanedQuestion = formatLatexToUnicode(q.question);
 
@@ -1116,7 +1118,7 @@ export function buildStandardExamDocx(
       });
 
       const tfRows: TableRow[] = [tfHeaderRow];
-      let tfQCounter = p1Questions.length + 1;
+      let tfQCounter = 1;
 
       for (const q of p2Questions) {
         const qNum = tfQCounter++;
@@ -1263,7 +1265,7 @@ export function buildStandardExamDocx(
       });
 
       const tlnRows: TableRow[] = [tlnHeaderRow];
-      let tlnQCounter = p1Questions.length + p2Questions.length + 1;
+      let tlnQCounter = 1;
 
       for (const q of p3Questions) {
         const qNum = tlnQCounter++;
@@ -1319,7 +1321,7 @@ export function buildStandardExamDocx(
       );
 
       const essayRows: TableRow[] = [];
-      let essayQCounter = p1Questions.length + p2Questions.length + p3Questions.length + 1;
+      let essayQCounter = 1;
 
       for (const q of p4Questions) {
         const qNum = essayQCounter++;

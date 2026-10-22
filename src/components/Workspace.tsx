@@ -552,51 +552,193 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                     </div>
                   )}
 
-                  {activeQuestions.map((q, idx) => (
-                    <div
-                      key={q.id || idx}
-                      className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
-                    >
-                      <div className="font-bold flex items-start justify-between">
-                        <div>
-                          Câu {idx + 1} ({q.score || 0.25} điểm): <MathRenderer text={q.question} />
-                        </div>
+                  {(() => {
+                    const p1 = activeQuestions.filter((q) => q.part === 'part1' || q.type === 'mcq_single');
+                    const p2 = activeQuestions.filter((q) => q.part === 'part2' || q.type === 'true_false_group');
+                    const p3 = activeQuestions.filter((q) => q.part === 'part3' || q.type === 'short_answer');
+                    const p4 = activeQuestions.filter((q) => q.part === 'part4' || q.type === 'essay');
+                    const others = activeQuestions.filter((q) => !p1.includes(q) && !p2.includes(q) && !p3.includes(q) && !p4.includes(q));
+
+                    const p1Score = p1.reduce((s, q) => s + (q.score || 0.25), 0);
+                    const p2Score = p2.reduce((s, q) => s + (q.score || 1.0), 0);
+                    const p3Score = p3.reduce((s, q) => s + (q.score || 0.5), 0);
+                    const p4Score = p4.reduce((s, q) => s + (q.score || 1.0), 0);
+                    const fmtScore = (num: number) => (num % 1 === 0 ? `${num},0` : num.toFixed(2).replace('.', ','));
+
+                    return (
+                      <div className="space-y-8">
+                        {/* PHẦN I */}
+                        {p1.length > 0 && (
+                          <div className="space-y-4">
+                            <div className="border-b-2 border-slate-800 pb-1.5">
+                              <h4 className="font-black text-sm uppercase tracking-wide text-slate-900">
+                                PHẦN I. CÂU TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN LỰA CHỌN ({fmtScore(p1Score)} điểm)
+                              </h4>
+                              <p className="text-xs italic text-slate-600 mt-0.5">
+                                Thí sinh chọn một phương án trả lời đúng duy nhất trong mỗi câu hỏi từ Câu 1 đến Câu {p1.length}.
+                              </p>
+                            </div>
+
+                            <div className="space-y-4">
+                              {p1.map((q, idx) => (
+                                <div
+                                  key={q.id || idx}
+                                  className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
+                                >
+                                  <div className="font-bold flex items-start justify-between">
+                                    <div>
+                                      Câu {idx + 1} ({q.score || 0.25} điểm): <MathRenderer text={q.question} />
+                                    </div>
+                                  </div>
+
+                                  {q.passage && (
+                                    <div className="p-3 bg-amber-50/50 rounded-lg border-l-4 border-amber-400 text-xs italic text-slate-800">
+                                      <MathRenderer text={q.passage} />
+                                    </div>
+                                  )}
+
+                                  {q.options && q.options.length > 0 && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 text-xs font-mono">
+                                      {q.options.map((opt, oIdx) => (
+                                        <div
+                                          key={oIdx}
+                                          className="p-1.5 rounded bg-slate-50 border border-slate-200 flex items-center"
+                                        >
+                                          <MathRenderer text={opt} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* PHẦN II */}
+                        {p2.length > 0 && (
+                          <div className="space-y-4 pt-4 border-t-2 border-slate-300">
+                            <div className="border-b-2 border-slate-800 pb-1.5">
+                              <h4 className="font-black text-sm uppercase tracking-wide text-slate-900">
+                                PHẦN II. CÂU TRẮC NGHIỆM ĐÚNG SAI ({fmtScore(p2Score)} điểm)
+                              </h4>
+                              <p className="text-xs italic text-slate-600 mt-0.5">
+                                Thí sinh trả lời từ Câu 1 đến Câu {p2.length}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.
+                              </p>
+                            </div>
+
+                            <div className="space-y-4">
+                              {p2.map((q, idx) => (
+                                <div
+                                  key={q.id || idx}
+                                  className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
+                                >
+                                  <div className="font-bold flex items-start justify-between">
+                                    <div>
+                                      Câu {idx + 1} ({q.score || 1.0} điểm): <MathRenderer text={q.question} />
+                                    </div>
+                                  </div>
+
+                                  {q.passage && (
+                                    <div className="p-3 bg-amber-50/50 rounded-lg border-l-4 border-amber-400 text-xs italic text-slate-800">
+                                      <MathRenderer text={q.passage} />
+                                    </div>
+                                  )}
+
+                                  {q.subItems && q.subItems.length > 0 && (
+                                    <div className="pl-4 space-y-1.5 text-xs">
+                                      {q.subItems.map((sub, sIdx) => (
+                                        <div key={sIdx} className="flex items-start space-x-2">
+                                          <span className="font-bold text-slate-900">{sub.label})</span>
+                                          <span><MathRenderer text={sub.statement} /></span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* PHẦN III */}
+                        {p3.length > 0 && (
+                          <div className="space-y-4 pt-4 border-t-2 border-slate-300">
+                            <div className="border-b-2 border-slate-800 pb-1.5">
+                              <h4 className="font-black text-sm uppercase tracking-wide text-slate-900">
+                                PHẦN III. CÂU TRẮC NGHIỆM TRẢ LỜI NGẮN ({fmtScore(p3Score)} điểm)
+                              </h4>
+                              <p className="text-xs italic text-slate-600 mt-0.5">
+                                Thí sinh trả lời từ Câu 1 đến Câu {p3.length}. Thí sinh viết câu trả lời ngắn vào phiếu làm bài.
+                              </p>
+                            </div>
+
+                            <div className="space-y-4">
+                              {p3.map((q, idx) => (
+                                <div
+                                  key={q.id || idx}
+                                  className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
+                                >
+                                  <div className="font-bold flex items-start justify-between">
+                                    <div>
+                                      Câu {idx + 1} ({q.score || 0.5} điểm): <MathRenderer text={q.question} />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* PHẦN IV */}
+                        {p4.length > 0 && (
+                          <div className="space-y-4 pt-4 border-t-2 border-slate-300">
+                            <div className="border-b-2 border-slate-800 pb-1.5">
+                              <h4 className="font-black text-sm uppercase tracking-wide text-slate-900">
+                                PHẦN IV. TỰ LUẬN ({fmtScore(p4Score)} điểm)
+                              </h4>
+                              <p className="text-xs italic text-slate-600 mt-0.5">
+                                Thí sinh trình bày chi tiết lời giải từ Câu 1 đến Câu {p4.length} vào giấy làm bài.
+                              </p>
+                            </div>
+
+                            <div className="space-y-4">
+                              {p4.map((q, idx) => (
+                                <div
+                                  key={q.id || idx}
+                                  className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
+                                >
+                                  <div className="font-bold flex items-start justify-between">
+                                    <div>
+                                      Câu {idx + 1} ({q.score || 1.0} điểm): <MathRenderer text={q.question} />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Other questions if any */}
+                        {others.length > 0 && (
+                          <div className="space-y-4 pt-4 border-t-2 border-slate-300">
+                            {others.map((q, idx) => (
+                              <div
+                                key={q.id || idx}
+                                className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
+                              >
+                                <div className="font-bold flex items-start justify-between">
+                                  <div>
+                                    Câu {idx + 1} ({q.score || 0.25} điểm): <MathRenderer text={q.question} />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-
-                      {/* Reading Passage if attached */}
-                      {q.passage && (
-                        <div className="p-3 bg-amber-50/50 rounded-lg border-l-4 border-amber-400 text-xs italic text-slate-800">
-                          <MathRenderer text={q.passage} />
-                        </div>
-                      )}
-
-                      {/* Part 1 Options */}
-                      {q.options && q.options.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 text-xs font-mono">
-                          {q.options.map((opt, oIdx) => (
-                            <div
-                              key={oIdx}
-                              className="p-1.5 rounded bg-slate-50 border border-slate-200 flex items-center"
-                            >
-                              <MathRenderer text={opt} />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Part 2 Sub-items */}
-                      {q.subItems && q.subItems.length > 0 && (
-                        <div className="pl-4 space-y-1 text-xs">
-                          {q.subItems.map((sub, sIdx) => (
-                            <div key={sIdx} className="flex items-start space-x-2">
-                              <span className="font-bold">{sub.label})</span>
-                              <span><MathRenderer text={sub.statement} /></span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -660,14 +802,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({
               onSelectCode={(c) => setSelectedSubTab(c)}
             />
           ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4 text-xs">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6 text-xs">
               <div className="flex items-center justify-between border-b pb-3">
                 <h3 className="font-bold text-slate-800 text-sm uppercase">
                   Bảng Đáp Án Chi Tiết - MÃ ĐỀ {activeCodeDisplay}
                 </h3>
                 {activeVariant?.isBase ? (
                   <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800">
-                    Đề Gốc
+                    Đề Gốc (101)
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
@@ -676,54 +818,233 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                 )}
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse border border-slate-300">
-                  <thead>
-                    <tr className="bg-slate-100 font-bold border-b border-slate-300">
-                      <th className="p-2 border border-slate-300 text-center w-12">STT</th>
-                      {shuffledCodes.length > 1 && !activeVariant?.isBase && (
-                        <th className="p-2 border border-slate-300 text-center w-24">Vị trí gốc (101)</th>
-                      )}
-                      <th className="p-2 border border-slate-300">Nội dung câu hỏi</th>
-                      <th className="p-2 border border-slate-300 w-28 text-center">Đáp án</th>
-                      <th className="p-2 border border-slate-300 w-20 text-center">Điểm</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeQuestions.map((q, idx) => {
-                      // Find original position in base exam if this is a variant
-                      let baseSttDisplay = idx + 1;
-                      if (!activeVariant?.isBase && shuffledCodes[0]) {
-                        const foundIdx = shuffledCodes[0].questions.findIndex((bq) => bq.id === q.id);
-                        if (foundIdx >= 0) baseSttDisplay = foundIdx + 1;
-                      }
+              {(() => {
+                const p1 = activeQuestions.filter((q) => q.part === 'part1' || q.type === 'mcq_single');
+                const p2 = activeQuestions.filter((q) => q.part === 'part2' || q.type === 'true_false_group');
+                const p3 = activeQuestions.filter((q) => q.part === 'part3' || q.type === 'short_answer');
+                const p4 = activeQuestions.filter((q) => q.part === 'part4' || q.type === 'essay');
 
-                      let displayAns = String(q.correctAnswer || '');
-                      if (q.subItems && q.subItems.length > 0) {
-                        displayAns = q.subItems.map((s) => `${s.label}: ${s.isCorrect ? 'Đ' : 'S'}`).join(' | ');
-                      }
+                const baseP1 = shuffledCodes[0]?.questions.filter((q) => q.part === 'part1' || q.type === 'mcq_single') || [];
+                const baseP2 = shuffledCodes[0]?.questions.filter((q) => q.part === 'part2' || q.type === 'true_false_group') || [];
+                const baseP3 = shuffledCodes[0]?.questions.filter((q) => q.part === 'part3' || q.type === 'short_answer') || [];
+                const baseP4 = shuffledCodes[0]?.questions.filter((q) => q.part === 'part4' || q.type === 'essay') || [];
 
-                      return (
-                        <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
-                          <td className="p-2 text-center font-bold">{idx + 1}</td>
-                          {shuffledCodes.length > 1 && !activeVariant?.isBase && (
-                            <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
-                              Câu {baseSttDisplay}
-                            </td>
-                          )}
-                          <td className="p-2 font-mono">
-                            <MathRenderer text={q.question} />
-                          </td>
-                          <td className="p-2 text-center font-bold text-emerald-700">
-                            {displayAns}
-                          </td>
-                          <td className="p-2 text-center font-bold text-blue-700">{q.score}đ</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                return (
+                  <div className="space-y-6">
+                    {/* Phần I answers table */}
+                    {p1.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="font-bold text-xs uppercase text-slate-800 bg-slate-100 p-2 rounded-lg border border-slate-200 flex items-center justify-between">
+                          <span>Phần I: Câu trắc nghiệm nhiều phương án (Từ Câu 1 đến Câu {p1.length})</span>
+                          <span className="text-blue-700">Mỗi câu đúng 0,25 điểm</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse border border-slate-300">
+                            <thead>
+                              <tr className="bg-slate-50 font-bold border-b border-slate-300">
+                                <th className="p-2 border border-slate-300 text-center w-14">STT</th>
+                                {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                  <th className="p-2 border border-slate-300 text-center w-28">Vị trí gốc (101)</th>
+                                )}
+                                <th className="p-2 border border-slate-300">Nội dung câu hỏi tóm tắt</th>
+                                <th className="p-2 border border-slate-300 w-24 text-center">Đáp án</th>
+                                <th className="p-2 border border-slate-300 w-20 text-center">Điểm</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {p1.map((q, idx) => {
+                                let baseStt = idx + 1;
+                                if (!activeVariant?.isBase && baseP1.length > 0) {
+                                  const fIdx = baseP1.findIndex((bq) => bq.id === q.id);
+                                  if (fIdx >= 0) baseStt = fIdx + 1;
+                                }
+
+                                return (
+                                  <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
+                                    <td className="p-2 text-center font-bold text-slate-800">Câu {idx + 1}</td>
+                                    {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                      <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
+                                        Phần I - Câu {baseStt}
+                                      </td>
+                                    )}
+                                    <td className="p-2 font-mono">
+                                      <MathRenderer text={q.question} />
+                                    </td>
+                                    <td className="p-2 text-center font-black text-emerald-700 bg-emerald-50/30">
+                                      {String(q.correctAnswer || 'A').toUpperCase()}
+                                    </td>
+                                    <td className="p-2 text-center font-bold text-blue-700">{q.score || 0.25}đ</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Phần II answers table */}
+                    {p2.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <div className="font-bold text-xs uppercase text-slate-800 bg-slate-100 p-2 rounded-lg border border-slate-200 flex items-center justify-between">
+                          <span>Phần II: Câu trắc nghiệm Đúng / Sai (Từ Câu 1 đến Câu {p2.length})</span>
+                          <span className="text-amber-800 text-[11px]">Đúng 1 ý: 0,1đ | 2 ý: 0,25đ | 3 ý: 0,5đ | 4 ý: 1,0đ</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse border border-slate-300">
+                            <thead>
+                              <tr className="bg-slate-50 font-bold border-b border-slate-300">
+                                <th className="p-2 border border-slate-300 text-center w-14">STT</th>
+                                {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                  <th className="p-2 border border-slate-300 text-center w-28">Vị trí gốc (101)</th>
+                                )}
+                                <th className="p-2 border border-slate-300">Nội dung câu hỏi</th>
+                                <th className="p-2 border border-slate-300 w-44 text-center">Đáp án các lệnh (a, b, c, d)</th>
+                                <th className="p-2 border border-slate-300 w-20 text-center">Điểm</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {p2.map((q, idx) => {
+                                let baseStt = idx + 1;
+                                if (!activeVariant?.isBase && baseP2.length > 0) {
+                                  const fIdx = baseP2.findIndex((bq) => bq.id === q.id);
+                                  if (fIdx >= 0) baseStt = fIdx + 1;
+                                }
+
+                                const subs = q.subItems && q.subItems.length > 0 ? q.subItems : [];
+                                const displayAns = subs.map((s) => `${s.label}: ${s.isCorrect ? 'Đ' : 'S'}`).join(' | ');
+
+                                return (
+                                  <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
+                                    <td className="p-2 text-center font-bold text-slate-800">Câu {idx + 1}</td>
+                                    {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                      <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
+                                        Phần II - Câu {baseStt}
+                                      </td>
+                                    )}
+                                    <td className="p-2 font-mono">
+                                      <MathRenderer text={q.question} />
+                                    </td>
+                                    <td className="p-2 text-center font-black text-blue-700 bg-blue-50/30">
+                                      {displayAns}
+                                    </td>
+                                    <td className="p-2 text-center font-bold text-blue-700">{q.score || 1.0}đ</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Phần III answers table */}
+                    {p3.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <div className="font-bold text-xs uppercase text-slate-800 bg-slate-100 p-2 rounded-lg border border-slate-200 flex items-center justify-between">
+                          <span>Phần III: Câu trắc nghiệm trả lời ngắn (Từ Câu 1 đến Câu {p3.length})</span>
+                          <span className="text-purple-700">Mỗi câu đúng {p3[0]?.score || 0.5} điểm</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse border border-slate-300">
+                            <thead>
+                              <tr className="bg-slate-50 font-bold border-b border-slate-300">
+                                <th className="p-2 border border-slate-300 text-center w-14">STT</th>
+                                {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                  <th className="p-2 border border-slate-300 text-center w-28">Vị trí gốc (101)</th>
+                                )}
+                                <th className="p-2 border border-slate-300">Nội dung câu hỏi</th>
+                                <th className="p-2 border border-slate-300 w-32 text-center">Đáp án chính xác</th>
+                                <th className="p-2 border border-slate-300 w-20 text-center">Điểm</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {p3.map((q, idx) => {
+                                let baseStt = idx + 1;
+                                if (!activeVariant?.isBase && baseP3.length > 0) {
+                                  const fIdx = baseP3.findIndex((bq) => bq.id === q.id);
+                                  if (fIdx >= 0) baseStt = fIdx + 1;
+                                }
+
+                                return (
+                                  <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
+                                    <td className="p-2 text-center font-bold text-slate-800">Câu {idx + 1}</td>
+                                    {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                      <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
+                                        Phần III - Câu {baseStt}
+                                      </td>
+                                    )}
+                                    <td className="p-2 font-mono">
+                                      <MathRenderer text={q.question} />
+                                    </td>
+                                    <td className="p-2 text-center font-black text-purple-700 bg-purple-50/30">
+                                      {String(q.correctAnswer || '')}
+                                    </td>
+                                    <td className="p-2 text-center font-bold text-blue-700">{q.score || 0.5}đ</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Phần IV answers table */}
+                    {p4.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <div className="font-bold text-xs uppercase text-slate-800 bg-slate-100 p-2 rounded-lg border border-slate-200 flex items-center justify-between">
+                          <span>Phần IV: Tự luận (Từ Câu 1 đến Câu {p4.length})</span>
+                          <span className="text-slate-600">Xem hướng dẫn chấm chi tiết ở tab HƯỚNG DẪN CHẤM</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse border border-slate-300">
+                            <thead>
+                              <tr className="bg-slate-50 font-bold border-b border-slate-300">
+                                <th className="p-2 border border-slate-300 text-center w-14">STT</th>
+                                {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                  <th className="p-2 border border-slate-300 text-center w-28">Vị trí gốc (101)</th>
+                                )}
+                                <th className="p-2 border border-slate-300">Nội dung câu hỏi & Hướng dẫn tóm tắt</th>
+                                <th className="p-2 border border-slate-300 w-20 text-center">Điểm</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {p4.map((q, idx) => {
+                                let baseStt = idx + 1;
+                                if (!activeVariant?.isBase && baseP4.length > 0) {
+                                  const fIdx = baseP4.findIndex((bq) => bq.id === q.id);
+                                  if (fIdx >= 0) baseStt = fIdx + 1;
+                                }
+
+                                return (
+                                  <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
+                                    <td className="p-2 text-center font-bold text-slate-800">Câu {idx + 1}</td>
+                                    {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                      <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
+                                        Phần IV - Câu {baseStt}
+                                      </td>
+                                    )}
+                                    <td className="p-2 font-mono">
+                                      <MathRenderer text={q.question} />
+                                      {q.explanation && (
+                                        <div className="text-slate-500 text-[11px] mt-1 italic">
+                                          HD: <MathRenderer text={q.explanation} />
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="p-2 text-center font-bold text-blue-700">{q.score || 1.0}đ</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

@@ -67,9 +67,11 @@ export const MasterComparisonMatrixView: React.FC<MasterComparisonMatrixViewProp
     const lines = filteredRows.map((r) => {
       const varCols = matrix.codes.slice(1).map((c) => {
         const v = r.variants[c];
-        return v ? `(C.${v.stt}) ${v.answer}` : '-';
+        const vNum = v ? (v.sttInPart ?? v.stt) : 0;
+        return v ? `(C.${vNum}) ${v.answer}` : '-';
       });
-      return [r.baseStt, r.part, r.baseAnswer, ...varCols].join('\t');
+      const baseNum = r.baseSttInPart ?? r.baseStt;
+      return [`Câu ${baseNum}`, r.part, r.baseAnswer, ...varCols].join('\t');
     });
 
     const fullText = [header, ...lines].join('\n');
@@ -112,7 +114,7 @@ export const MasterComparisonMatrixView: React.FC<MasterComparisonMatrixViewProp
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            So sánh vị trí câu và đáp án tương ứng giữa các mã đề để chấm thi nhanh, chính xác tuyệt đối
+            So sánh vị trí câu (đánh số từ Câu 1 theo từng Phần) và đáp án tương ứng giữa các mã đề để chấm thi nhanh, chính xác tuyệt đối
           </p>
         </div>
 
@@ -177,7 +179,7 @@ export const MasterComparisonMatrixView: React.FC<MasterComparisonMatrixViewProp
         <table className="w-full text-xs text-left border-collapse">
           <thead>
             <tr className="bg-slate-800 text-white font-bold text-center border-b border-slate-300">
-              <th className="p-2.5 border-r border-slate-700 w-16">STT (Gốc)</th>
+              <th className="p-2.5 border-r border-slate-700 w-16">STT (Phần)</th>
               <th className="p-2.5 border-r border-slate-700 w-24">Phần thi</th>
               <th className="p-2.5 border-r border-slate-700 text-left min-w-[200px]">Nội dung câu hỏi tóm tắt</th>
               <th className="p-2.5 border-r border-slate-700 w-28 bg-blue-900 text-amber-200">
@@ -218,6 +220,8 @@ export const MasterComparisonMatrixView: React.FC<MasterComparisonMatrixViewProp
                 partShort = 'Phần IV';
               }
 
+              const displayBaseStt = row.baseSttInPart ?? row.baseStt;
+
               return (
                 <tr
                   key={row.questionId || idx}
@@ -225,9 +229,9 @@ export const MasterComparisonMatrixView: React.FC<MasterComparisonMatrixViewProp
                     isEven ? 'bg-white' : 'bg-slate-50/60'
                   }`}
                 >
-                  {/* STT Gốc */}
+                  {/* STT Gốc theo Phần */}
                   <td className="p-2.5 text-center font-black text-slate-700 border-r border-slate-200">
-                    Câu {row.baseStt}
+                    <span className="text-blue-900 font-bold">Câu {displayBaseStt}</span>
                   </td>
 
                   {/* Part Badge */}
@@ -260,8 +264,9 @@ export const MasterComparisonMatrixView: React.FC<MasterComparisonMatrixViewProp
                       );
                     }
 
+                    const displayVarStt = varInfo.sttInPart ?? varInfo.stt;
                     const isDifferentAnswer = varInfo.answer !== row.baseAnswer;
-                    const isDifferentPosition = varInfo.stt !== row.baseStt;
+                    const isDifferentPosition = displayVarStt !== displayBaseStt;
 
                     return (
                       <td
@@ -280,9 +285,9 @@ export const MasterComparisonMatrixView: React.FC<MasterComparisonMatrixViewProp
                           </span>
                           <span className="text-[10px] text-slate-500 font-mono">
                             {isDifferentPosition ? (
-                              <span className="text-amber-800 font-semibold">(Câu {varInfo.stt})</span>
+                              <span className="text-amber-800 font-semibold">(Câu {displayVarStt})</span>
                             ) : (
-                              <span className="text-slate-400">(Câu {varInfo.stt})</span>
+                              <span className="text-slate-400">(Câu {displayVarStt})</span>
                             )}
                           </span>
                         </div>

@@ -360,19 +360,30 @@ export function generateMasterComparisonMatrix(
     const baseStt = baseIdx + 1;
     const baseAnswer = formatAnswerToString(baseQ);
 
-    const variants: Record<string, { stt: number; answer: string }> = {};
+    // Calculate position within its Part
+    const basePartQuestions = baseCode.questions.filter((q) => q.part === baseQ.part);
+    const basePartIdx = basePartQuestions.findIndex((q) => q.id === baseQ.id);
+    const baseSttInPart = basePartIdx >= 0 ? basePartIdx + 1 : baseStt;
+
+    const variants: Record<string, { stt: number; sttInPart?: number; answer: string }> = {};
 
     shuffledCodes.forEach((variant) => {
       const foundIdx = variant.questions.findIndex((q) => q.id === baseQ.id);
       if (foundIdx >= 0) {
         const vq = variant.questions[foundIdx];
+        const varPartQuestions = variant.questions.filter((q) => q.part === baseQ.part);
+        const varPartIdx = varPartQuestions.findIndex((q) => q.id === baseQ.id);
+        const varSttInPart = varPartIdx >= 0 ? varPartIdx + 1 : foundIdx + 1;
+
         variants[variant.code] = {
           stt: foundIdx + 1,
+          sttInPart: varSttInPart,
           answer: formatAnswerToString(vq),
         };
       } else {
         variants[variant.code] = {
           stt: baseStt,
+          sttInPart: baseSttInPart,
           answer: baseAnswer,
         };
       }
@@ -390,10 +401,11 @@ export function generateMasterComparisonMatrix(
     // Clean preview
     const cleanPreview = baseQ.question
       ? baseQ.question.replace(/\$+/g, '').replace(/\s+/g, ' ').slice(0, 75) + (baseQ.question.length > 75 ? '...' : '')
-      : `Câu ${baseStt}`;
+      : `Câu ${baseSttInPart}`;
 
     return {
       baseStt,
+      baseSttInPart,
       questionId: baseQ.id,
       part: baseQ.part,
       partTitle,

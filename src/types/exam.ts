@@ -341,6 +341,7 @@ export interface ShuffledExamCode {
 
 export interface MasterComparisonRow {
   baseStt: number;
+  baseSttInPart?: number;
   questionId: string;
   part: string;
   partTitle: string;
@@ -349,6 +350,7 @@ export interface MasterComparisonRow {
   baseAnswer: string;
   variants: Record<string, {
     stt: number;
+    sttInPart?: number;
     answer: string;
   }>;
 }
