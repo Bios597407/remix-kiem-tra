@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { FileText, Download, Printer, X, FileCheck, Sliders, ChevronDown, ChevronUp } from 'lucide-react';
-import { QuestionItem, ExamConfig } from '../types/exam';
+import { QuestionItem, ExamConfig, ShuffledExamCode } from '../types/exam';
 import { downloadStandardFormDocx, balanceMcqAnswerKeys } from '../utils/docxExporter';
+import { downloadAllExamCodesZip } from '../utils/multiCodeExporter';
+import { generateShuffledCodes } from '../utils/examShuffler';
 import MathRenderer from '../utils/mathRenderer';
 
 interface StandardExamExporterModalProps {
@@ -10,6 +12,8 @@ interface StandardExamExporterModalProps {
   config: ExamConfig;
   questions: QuestionItem[];
   onChangeConfig?: (updated: ExamConfig) => void;
+  shuffledCodes?: ShuffledExamCode[];
+  initialExamCode?: string;
 }
 
 export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps> = ({
@@ -18,6 +22,8 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
   config,
   questions,
   onChangeConfig,
+  shuffledCodes = [],
+  initialExamCode = '101',
 }) => {
   if (!isOpen) return null;
 
@@ -34,7 +40,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
   const [showOfficial, setShowOfficial] = useState<boolean>(
     config.showOfficialBadge !== false
   );
-  const [examCode, setExamCode] = useState<string>('101');
+  const [examCode, setExamCode] = useState<string>(initialExamCode || '101');
   const [examTitle, setExamTitle] = useState<string>(
     config.examTitle || 'ĐỀ KIỂM TRA ĐỊNH KỲ GIỮA HỌC KỲ I'
   );
@@ -51,6 +57,25 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
     (config.appUiScale as any) || 'standard'
   );
 
+  // Fallback to auto-generated 4 codes if questions exist
+  const effectiveCodes = React.useMemo(() => {
+    if (shuffledCodes && shuffledCodes.length > 0) return shuffledCodes;
+    if (questions && questions.length > 0) {
+      return generateShuffledCodes(questions, { variantCount: 4, namingPreset: '101' }, config.grade);
+    }
+    return [];
+  }, [shuffledCodes, questions, config.grade]);
+
+  // Determine current questions: if effectiveCodes has the selected code, use its questions
+  const currentQuestions = React.useMemo(() => {
+    if (effectiveCodes && effectiveCodes.length > 0) {
+      const found = effectiveCodes.find((c) => c.code === examCode);
+      if (found) return found.questions;
+    }
+    return questions;
+  }, [effectiveCodes, examCode, questions]);
+
+
   const getScaleStyle = (scale: 'compact' | 'standard' | 'relaxed') => {
     switch (scale) {
       case 'compact':
@@ -64,7 +89,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
   };
 
   // Apply answer balancing if option is ON
-  const activeQuestions = balanceAnswers ? balanceMcqAnswerKeys(questions) : questions;
+  const activeQuestions = balanceAnswers ? balanceMcqAnswerKeys(currentQuestions) : currentQuestions;
 
   const rawSubject = (config.customSubject || config.subject || 'Khoa học tự nhiên').trim();
   const subjectUpper = rawSubject.toUpperCase();
@@ -132,6 +157,15 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
     downloadStandardFormDocx(updated, activeQuestions, { mode: 'full', examCode });
   };
 
+  const handleDownloadZip = () => {
+    const targetCodes = effectiveCodes.length > 0 ? effectiveCodes : shuffledCodes;
+    if (targetCodes && targetCodes.length > 0) {
+      const updated = getUpdatedConfig();
+      if (onChangeConfig) onChangeConfig(updated);
+      downloadAllExamCodesZip(updated, targetCodes, { mode: 'full' });
+    }
+  };
+
   const handlePrint = () => {
     const updated = getUpdatedConfig();
     if (onChangeConfig) onChangeConfig(updated);
@@ -153,6 +187,11 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                 <span className="text-[10px] font-bold bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full">
                   Khuôn Cố Định CV 7991
                 </span>
+                {effectiveCodes && effectiveCodes.length > 1 && (
+                  <span className="text-[10px] font-bold bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                    {effectiveCodes.length} Mã Đề
+                  </span>
+                )}
               </h2>
               <p className="text-[11px] text-blue-200">
                 Hiển thị chuẩn lề 2,03cm × 1,91cm • Font Times New Roman 11pt • Bảng đáp án chuẩn
@@ -167,6 +206,41 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {/* Code Selector Strip if codes exist */}
+        {effectiveCodes && effectiveCodes.length > 0 && (
+          <div className="no-print bg-slate-800 text-white px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-700">
+            <div className="flex items-center space-x-2">
+              <span className="font-bold text-amber-300">Chọn mã đề xuất:</span>
+              <div className="flex flex-wrap gap-1">
+                {effectiveCodes.map((c, idx) => (
+                  <button
+                    key={c.code}
+                    onClick={() => setExamCode(c.code)}
+                    className={`px-2.5 py-1 rounded font-black text-xs transition cursor-pointer ${
+                      examCode === c.code
+                        ? 'bg-blue-600 text-white shadow-xs ring-1 ring-blue-300'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
+                    }`}
+                  >
+                    {idx === 0 ? `⭐ Mã ${c.code}` : `Mã ${c.code}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {effectiveCodes.length > 1 && (
+              <button
+                onClick={handleDownloadZip}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer"
+                title="Tải gói ZIP trọn bộ tất cả các mã đề"
+              >
+                <Download className="w-3.5 h-3.5 text-amber-200" />
+                <span>📦 Tải Toàn Bộ {effectiveCodes.length} Mã (.ZIP)</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Main Toolbar & Action Strip */}
         <div className="no-print bg-white border-b border-slate-300 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -198,8 +272,6 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
               </select>
             </div>
 
-
-
             {/* Answer Balancing Toggle */}
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
@@ -224,7 +296,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
               className="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               <Printer className="w-4 h-4 text-slate-300" />
-              <span>In đề (Form chuẩn)</span>
+              <span>In Mã {examCode}</span>
             </button>
 
             <button
@@ -232,7 +304,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
               className="px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-lg text-xs transition flex items-center gap-1.5 shadow-md cursor-pointer"
             >
               <Download className="w-4 h-4 text-amber-300" />
-              <span>Tải Word (.docx chuẩn)</span>
+              <span>Tải Word Mã {examCode}</span>
             </button>
           </div>
         </div>

@@ -297,14 +297,64 @@ export interface GradeTabState {
   unsolvableReason?: string;
   uploadedDocs: Array<{ id: string; name: string; content: string; size: number }>;
   generatedQuestions: QuestionItem[];
+  shuffledCodes?: ShuffledExamCode[];
+  activeExamCode?: string;
+}
+
+export interface ShuffleOptions {
+  variantCount: number; // 2, 4, 6, 8...
+  namingPreset: '101' | 'grade_prefix' | 'random3' | 'even_odd' | 'alpha' | 'custom';
+  customCodeList?: string[];
+  shufflePart1Questions: boolean;
+  shufflePart1Options: boolean;
+  shufflePart2Questions: boolean;
+  shufflePart2SubItems: boolean;
+  shufflePart3Questions: boolean;
+  shufflePart4Questions: boolean;
+  lockPassageClusters: boolean;
+  preserveAnchoredOptions: boolean;
+}
+
+export interface ExamCodeMappingItem {
+  newIndex: number;          // 1-based index in variant
+  baseIndex: number;         // 1-based index in base exam (101)
+  questionId: string;
+  part: string;
+  newCorrectAnswer: string;
+  baseCorrectAnswer: string;
 }
 
 export interface ShuffledExamCode {
   code: string;
+  title?: string;
+  isBase?: boolean;
   questions: QuestionItem[];
   quickAnswers: Array<{
     stt: number;
     part: string;
     answer: string;
+    originalStt: number;
+    questionId?: string;
+  }>;
+  mappingFromBase?: ExamCodeMappingItem[];
+}
+
+export interface MasterComparisonRow {
+  baseStt: number;
+  questionId: string;
+  part: string;
+  partTitle: string;
+  questionPreview: string;
+  score: number;
+  baseAnswer: string;
+  variants: Record<string, {
+    stt: number;
+    answer: string;
   }>;
 }
+
+export interface MasterComparisonMatrix {
+  codes: string[];
+  rows: MasterComparisonRow[];
+}
+

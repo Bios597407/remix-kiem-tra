@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileText,
   CheckCircle,
@@ -15,6 +15,11 @@ import {
   Upload,
   AlertTriangle,
   BookOpen,
+  Shuffle,
+  FolderArchive,
+  Table as TableIcon,
+  ChevronRight,
+  Sliders,
 } from 'lucide-react';
 import {
   QuestionItem,
@@ -25,6 +30,7 @@ import {
   NangLucItem,
   ShuffledExamCode,
   StudyGuideData,
+  ShuffleOptions,
 } from '../types/exam';
 import MathRenderer from '../utils/mathRenderer';
 import { buildStudyGuide, generateAIStudyGuide } from '../utils/studyGuideBuilder';
@@ -39,7 +45,11 @@ import {
   exportStandardExamWordDoc,
 } from '../utils/exporter';
 import { downloadStandardExamDocx } from '../utils/docxExporter';
+import { downloadAllExamCodesZip } from '../utils/multiCodeExporter';
+import { generateShuffledCodes } from '../utils/examShuffler';
 import { AzotaExportModal } from './AzotaExportModal';
+import { ShuffleModal } from './ShuffleModal';
+import { MasterComparisonMatrixView } from './MasterComparisonMatrixView';
 
 interface WorkspaceProps {
   config: ExamConfig;
@@ -48,13 +58,18 @@ interface WorkspaceProps {
   luat: LuatConfig;
   nangLucList: NangLucItem[];
   questions: QuestionItem[];
-  activeTab: 'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide';
-  onTabChange: (tab: 'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide') => void;
+  activeTab: 'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide' | 'comparison';
+  onTabChange: (tab: 'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide' | 'comparison') => void;
   onUpdateCauList?: (updated: CauItem[]) => void;
-  onPrint: (type: 'exam' | 'answers' | 'matrix' | 'study_guide' | 'full') => void;
+  onPrint: (type: 'exam' | 'answers' | 'matrix' | 'study_guide' | 'full', examCode?: string) => void;
   onOpenStandardExporter?: () => void;
   onConfigChange?: (updated: ExamConfig) => void;
   auditPassed: boolean;
+  shuffledCodes?: ShuffledExamCode[];
+  onUpdateShuffledCodes?: (codes: ShuffledExamCode[]) => void;
+  activeExamCode?: string;
+  onSelectExamCode?: (code: string) => void;
+  onLoadSampleExam?: () => void;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -71,29 +86,139 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onOpenStandardExporter,
   onConfigChange,
   auditPassed,
+  shuffledCodes: externalShuffledCodes,
+  onUpdateShuffledCodes,
+  activeExamCode: externalActiveCode,
+  onSelectExamCode,
+  onLoadSampleExam,
 }) => {
   const toast = useToast();
-  const [copiedNotification, setCopiedNotification] = useState(false);
   const [showAzotaModal, setShowAzotaModal] = useState(false);
+  const [showShuffleModal, setShowShuffleModal] = useState(false);
   const [aiStudyGuide, setAiStudyGuide] = useState<StudyGuideData | null>(null);
   const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
+  const [isExportingZip, setIsExportingZip] = useState(false);
+
+  // Local state for shuffled codes if not controlled from above
+  const [localShuffledCodes, setLocalShuffledCodes] = useState<ShuffledExamCode[]>([]);
+  const shuffledCodes = externalShuffledCodes && externalShuffledCodes.length > 0 ? externalShuffledCodes : localShuffledCodes;
+
+  // Active code selection (or 'matrix_comparison' to show master comparison matrix)
+  const [selectedSubTab, setSelectedSubTab] = useState<string>('101');
+
+  // Keep selectedSubTab in sync if external active code changes
+  useEffect(() => {
+    if (externalActiveCode) {
+      setSelectedSubTab(externalActiveCode);
+    }
+  }, [externalActiveCode]);
+
+  // Guaranteed list of codes (automatically generates 4 codes 101-104 if questions exist)
+  const displayCodes = useMemo(() => {
+    if (shuffledCodes && shuffledCodes.length > 0) return shuffledCodes;
+    if (questions && questions.length > 0) {
+      return generateShuffledCodes(questions, { variantCount: 4, namingPreset: '101' }, config.grade);
+    }
+    return [];
+  }, [shuffledCodes, questions, config.grade]);
+
+  // When new questions arrive and no codes yet, initialize 4 standard codes
+  useEffect(() => {
+    if (questions && questions.length > 0 && shuffledCodes.length === 0) {
+      const initialCodes = generateShuffledCodes(questions, { variantCount: 4, namingPreset: '101' }, config.grade);
+      if (onUpdateShuffledCodes) {
+        onUpdateShuffledCodes(initialCodes);
+      } else {
+        setLocalShuffledCodes(initialCodes);
+      }
+    }
+  }, [questions]);
+
+  // Active variant questions
+  const activeVariant = useMemo(() => {
+    if (displayCodes.length === 0) {
+      return { code: '101', questions, isBase: true };
+    }
+    const found = displayCodes.find((c) => c.code === selectedSubTab);
+    return found || displayCodes[0];
+  }, [displayCodes, selectedSubTab, questions]);
+
+  const activeQuestions = activeVariant ? activeVariant.questions : questions;
+  const activeCodeDisplay = activeVariant ? activeVariant.code : '101';
+
+  // Handle Shuffling Execution
+  const handleExecuteShuffle = (options: ShuffleOptions) => {
+    if (!questions || questions.length === 0) {
+      toast.error('Chưa có câu hỏi trong đề gốc để trộn! Vui lòng bấm Tạo Đề Thi Với AI trước.');
+      return;
+    }
+
+    try {
+      const generated = generateShuffledCodes(questions, options, config.grade);
+      if (onUpdateShuffledCodes) {
+        onUpdateShuffledCodes(generated);
+      } else {
+        setLocalShuffledCodes(generated);
+      }
+      setSelectedSubTab(generated[0]?.code || '101');
+      if (onSelectExamCode && generated[0]?.code) {
+        onSelectExamCode(generated[0].code);
+      }
+      onTabChange('exam');
+      toast.success(
+        `🎉 Đã trộn thành công ${generated.length} mã đề (${generated.map((c) => c.code).join(', ')}) theo chuẩn CV 7991!`
+      );
+    } catch (err: unknown) {
+      console.error('Shuffle error:', err);
+      toast.error('Lỗi khi trộn mã đề');
+    }
+  };
 
   const handleExportDocx = async (mode: 'full' | 'examOnly') => {
-    if (!questions || questions.length === 0) {
+    if (!activeQuestions || activeQuestions.length === 0) {
       toast.error('Chưa có câu hỏi đề thi! Vui lòng bấm Tạo Đề Thi Với AI trước.');
       return;
     }
     try {
       setIsExportingDocx(true);
-      toast.info(mode === 'full' ? '⏳ Đang khởi tạo file Word (.docx) Đầy đủ theo mẫu...' : '⏳ Đang khởi tạo file Word (.docx) Đề thi học sinh...');
-      await downloadStandardExamDocx(config, questions, { mode, examCode: '101' });
-      toast.success(mode === 'full' ? '🎉 Đã tải file Word (.docx) Đầy đủ (Đề + Đáp án & Hướng dẫn chấm)!' : '🎉 Đã tải file Word (.docx) Đề thi học sinh!');
+      const codeLabel = activeCodeDisplay;
+      toast.info(
+        mode === 'full'
+          ? `⏳ Đang xuất file Word (.docx) Đầy đủ cho Mã đề ${codeLabel}...`
+          : `⏳ Đang xuất file Word (.docx) Đề học sinh cho Mã đề ${codeLabel}...`
+      );
+      await downloadStandardExamDocx(config, activeQuestions, { mode, examCode: codeLabel });
+      toast.success(
+        mode === 'full'
+          ? `🎉 Đã tải file Word (.docx) Đầy đủ cho Mã ${codeLabel}!`
+          : `🎉 Đã tải file Word (.docx) Đề thi học sinh cho Mã ${codeLabel}!`
+      );
     } catch (err: unknown) {
       console.error('Docx export failed:', err);
       toast.error(`Lỗi xuất file Word: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsExportingDocx(false);
+    }
+  };
+
+  // Download All Variants in a Single ZIP
+  const handleDownloadAllZip = async () => {
+    const targetCodes = displayCodes.length > 0 ? displayCodes : shuffledCodes;
+    if (!targetCodes || targetCodes.length === 0) {
+      toast.error('Chưa có danh sách mã đề!');
+      return;
+    }
+    try {
+      setIsExportingZip(true);
+      toast.info(`⏳ Đang đóng gói trọn bộ ${targetCodes.length} mã đề kèm Bảng ma trận đối chiếu vào file ZIP...`);
+      await downloadAllExamCodesZip(config, targetCodes, { mode: 'full' });
+      toast.success(`🎉 Đã tải trọn bộ file ZIP chứa ${targetCodes.length} mã đề và Bảng đối chiếu!`);
+    } catch (err: unknown) {
+      console.error('Zip export error:', err);
+      toast.error('Lỗi khi tải file ZIP trọn bộ mã đề');
+    } finally {
+      setIsExportingZip(false);
     }
   };
 
@@ -114,8 +239,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     }
   };
 
-  const totalScore = Number(questions.reduce((sum, q) => sum + (q.score || 0), 0).toFixed(2));
-
   const getDisplayScaleStyle = (scale?: 'compact' | 'standard' | 'relaxed') => {
     switch (scale) {
       case 'compact':
@@ -133,11 +256,24 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       {/* Navigation Tabs */}
       <div className="no-print border-b border-slate-200 bg-white rounded-2xl p-2 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-2">
+          {/* Main Module Tabs */}
           <div className="flex flex-wrap gap-1">
             {[
               { id: 'matrix', label: 'MA TRẬN ĐỀ', icon: Grid },
               { id: 'spec', label: 'BẢN ĐẶC TẢ', icon: ListTree },
-              { id: 'exam', label: 'ĐỀ KIỂM TRA', icon: FileText, count: questions.length },
+              {
+                id: 'exam',
+                label: 'ĐỀ KIỂM TRA',
+                icon: FileText,
+                count: questions.length,
+                badge: displayCodes.length > 1 ? `${displayCodes.length} mã` : undefined,
+              },
+              {
+                id: 'comparison',
+                label: 'ĐỐI CHIẾU MÃ ĐỀ',
+                icon: TableIcon,
+                badge: displayCodes.length > 1 ? `${displayCodes.length} mã` : undefined,
+              },
               { id: 'answers', label: 'BẢNG ĐÁP ÁN', icon: CheckCircle },
               { id: 'rubric', label: 'HƯỚNG DẪN CHẤM', icon: HelpCircle },
               { id: 'study_guide', label: 'ĐỀ CƯƠNG ÔN TẬP', icon: BookOpen },
@@ -148,7 +284,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => onTabChange(tab.id as any)}
-                  className={`flex items-center space-x-1.5 px-3 py-2 text-xs font-black transition rounded-lg ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 text-xs font-black transition rounded-lg cursor-pointer ${
                     isActive
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -157,8 +293,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   <Icon className="h-3.5 w-3.5" />
                   <span>{tab.label}</span>
                   {tab.count !== undefined && (
-                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isActive ? 'bg-white text-blue-900' : 'bg-slate-200 text-slate-700'}`}>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        isActive ? 'bg-white text-blue-900' : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
                       {tab.count}
+                    </span>
+                  )}
+                  {tab.badge && (
+                    <span className="rounded-full px-1.5 py-0.5 text-[9px] font-black bg-amber-400 text-amber-950 ml-0.5">
+                      {tab.badge}
                     </span>
                   )}
                 </button>
@@ -166,19 +311,49 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             })}
           </div>
 
+          {/* Action Toolbar */}
           <div className="flex flex-wrap items-center gap-1.5">
+            {/* Nút Trộn Mã Đề (LỰA CHỌN A - CV 7991) */}
+            <button
+              onClick={() => setShowShuffleModal(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition shadow-sm bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 text-white cursor-pointer ring-1 ring-purple-400/40"
+              title="Trộn đề thi thành nhiều mã đề (101, 102, 103, 104...) theo chuẩn Công văn 7991"
+            >
+              <Shuffle className="h-3.5 w-3.5 text-amber-300" />
+              <span>Trộn Mã Đề</span>
+              {displayCodes.length > 1 && (
+                <span className="px-1.5 py-0.2 bg-amber-400 text-amber-950 rounded-full text-[10px] font-black">
+                  {displayCodes.length}
+                </span>
+              )}
+            </button>
+
+            {/* Nút Tải Trọn Bộ ZIP nếu đã có nhiều mã */}
+            {displayCodes.length > 1 && (
+              <button
+                onClick={handleDownloadAllZip}
+                disabled={isExportingZip}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                title={`Tải gói ZIP trọn bộ ${displayCodes.length} file Word mã đề + Bảng đối chiếu`}
+              >
+                <FolderArchive className="h-3.5 w-3.5 text-amber-300" />
+                <span>{isExportingZip ? 'Đang nén ZIP...' : `📦 Tải Trọn Bộ ZIP (${displayCodes.length} Mã)`}</span>
+              </button>
+            )}
+
             {/* Nút Xuất đề (theo form chuẩn) */}
             {onOpenStandardExporter && (
               <button
                 onClick={onOpenStandardExporter}
-                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black transition shadow-md bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-600 hover:to-red-600 text-white cursor-pointer ring-2 ring-amber-300 animate-pulse"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition shadow-md bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-600 hover:to-red-600 text-white cursor-pointer ring-2 ring-amber-300"
                 title="Xuất đề (theo form chuẩn) - Mở giao diện xem trước, in và tải file .docx chuẩn 100%"
               >
                 <FileDown className="h-4 w-4 text-white" />
-                <span>Xuất đề (theo form chuẩn)</span>
+                <span>Xuất Form Chuẩn</span>
               </button>
             )}
-            {/* Xuất Word (.docx) Đầy đủ theo mẫu chuẩn */}
+
+            {/* Xuất Word (.docx) Đầy đủ theo mã đang chọn */}
             <button
               onClick={() => handleExportDocx('full')}
               disabled={isExportingDocx}
@@ -187,13 +362,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               }`}
-              title="Xuất file Word (.docx) thực sự chuẩn mẫu (A4, 12pt, 2 khối đầu đề, Đề + Đáp án & HD chấm)"
+              title={`Xuất file Word (.docx) Mã ${activeCodeDisplay} Đầy đủ`}
             >
               <FileDown className="h-3.5 w-3.5" />
-              <span>{isExportingDocx ? 'Đang tạo...' : 'Word (.docx) Đầy Đủ'}</span>
+              <span>{isExportingDocx ? 'Đang tạo...' : `Word Mã ${activeCodeDisplay} Đầy Đủ`}</span>
             </button>
 
-            {/* Xuất Word (.docx) chỉ phần Đề kiểm tra cho học sinh */}
+            {/* Xuất Word (.docx) Đề Cho Học Sinh */}
             <button
               onClick={() => handleExportDocx('examOnly')}
               disabled={isExportingDocx}
@@ -202,10 +377,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   ? 'bg-sky-600 hover:bg-sky-700 text-white cursor-pointer'
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               }`}
-              title="Chỉ xuất phần Đề kiểm tra cho học sinh dạng file Word (.docx) chuẩn mẫu"
+              title={`Xuất file Word (.docx) Mã ${activeCodeDisplay} chỉ phần Đề cho HS`}
             >
               <FileText className="h-3.5 w-3.5" />
-              <span>Word (.docx) Đề Cho HS</span>
+              <span>Word Đề Cho HS</span>
             </button>
 
             {/* Xuất Word Ma trận & Đặc tả */}
@@ -214,29 +389,27 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                 exportMatrixAndSpecsCv7991WordDoc(config, chuDeList, cauList, luat);
                 toast.success('📥 Đang tải file Word Ma trận & Bản đặc tả...');
               }}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
               title="Xuất Ma trận & Bản đặc tả sang Word (.doc)"
             >
               <Grid className="h-3.5 w-3.5" />
-              <span>Word Ma Trận & Đặc Tả</span>
+              <span>Ma Trận & Đặc Tả</span>
             </button>
 
             {/* Xuất Azota / K12 */}
             <button
-              onClick={() => {
-                setShowAzotaModal(true);
-              }}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-orange-600 hover:bg-orange-700 text-white cursor-pointer"
+              onClick={() => setShowAzotaModal(true)}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-orange-600 hover:bg-orange-700 text-white cursor-pointer"
               title="Xuất dạng Azota / K12Online"
             >
               <Share2 className="h-3.5 w-3.5" />
-              <span>Azota / K12</span>
+              <span>Azota</span>
             </button>
 
             {/* In & Export PDF */}
             <button
-              onClick={() => onPrint(activeTab as any)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              onClick={() => onPrint(activeTab as any, activeCodeDisplay)}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
               title="In ấn hoặc xuất PDF"
             >
               <Printer className="h-3.5 w-3.5" />
@@ -259,66 +432,300 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         />
       )}
 
-      {/* Tab 2: ĐỀ KIỂM TRA CHUẨN A4 */}
+      {/* Tab 2: ĐỀ KIỂM TRA (VỚI THANH CHỌN MÃ ĐỀ & BẢNG ĐỐI CHIẾU) */}
       {activeTab === 'exam' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-10 shadow-sm">
-          <OfficialExamHeader config={config} activeCode="101" />
+        <div className="space-y-4">
+          {/* Sub-Header: Variant Selection Bar - Always visible */}
+          <div className="no-print bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-2.5 shadow-md border border-slate-800 text-white flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5 pl-2">
+                <Shuffle className="w-3.5 h-3.5 text-amber-400" />
+                <span>MÃ ĐỀ THI:</span>
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {displayCodes.map((item, idx) => {
+                  const isSelected = selectedSubTab === item.code;
+                  return (
+                    <button
+                      key={item.code}
+                      onClick={() => {
+                        setSelectedSubTab(item.code);
+                        if (onSelectExamCode) onSelectExamCode(item.code);
+                      }}
+                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400'
+                          : 'bg-white/10 text-slate-200 hover:bg-white/20 hover:text-white'
+                      }`}
+                    >
+                      {idx === 0 ? (
+                        <>
+                          <span className="text-amber-300">⭐</span>
+                          <span>Mã {item.code} (Gốc)</span>
+                        </>
+                      ) : (
+                        <span>Mã {item.code}</span>
+                      )}
+                    </button>
+                  );
+                })}
 
-          {questions.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 space-y-2">
-              <FileText className="w-10 h-10 mx-auto text-slate-300" />
-              <p className="font-semibold text-xs">Chưa sinh câu hỏi cho đề thi này.</p>
-              <p className="text-[11px] text-slate-400">Nhấn "TẠO ĐỀ THI VỚI AI" ở bảng cấu hình bên trái để tiến hành sinh câu hỏi.</p>
+                {/* Sub-tab: Bảng đối chiếu đáp án */}
+                <button
+                  onClick={() => setSelectedSubTab('matrix_comparison')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                    selectedSubTab === 'matrix_comparison'
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md ring-2 ring-amber-300'
+                      : 'bg-white/10 text-amber-200 hover:bg-white/20'
+                  }`}
+                >
+                  <TableIcon className="w-3.5 h-3.5 text-amber-300" />
+                  <span>📑 Bảng Đối Chiếu Đáp Án</span>
+                </button>
+              </div>
             </div>
+
+            <div className="flex items-center space-x-2 pr-1">
+              <button
+                onClick={() => setShowShuffleModal(true)}
+                className="flex items-center space-x-1 px-2.5 py-1 text-[11px] font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg transition cursor-pointer"
+              >
+                <Sliders className="w-3 h-3 text-amber-400" />
+                <span>⚙️ Cấu hình trộn lại</span>
+              </button>
+            </div>
+          </div>
+
+          {/* If Sub-Tab is Master Comparison Matrix */}
+          {selectedSubTab === 'matrix_comparison' ? (
+            <MasterComparisonMatrixView
+              config={config}
+              shuffledCodes={displayCodes}
+              onSelectCode={(c) => setSelectedSubTab(c)}
+            />
           ) : (
-            <div className="space-y-6 font-exam text-slate-900" style={getDisplayScaleStyle(config.appUiScale)}>
-              {questions.map((q, idx) => (
-                <div key={q.id || idx} className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200">
-                  <div className="font-bold">
-                    Câu {idx + 1} ({q.score || 0.25} điểm): <MathRenderer text={q.question} />
-                  </div>
-                  {q.options && q.options.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 text-xs font-mono">
-                      {q.options.map((opt, oIdx) => (
-                        <div key={oIdx} className="p-1 rounded bg-slate-50 border border-slate-200">
-                          <MathRenderer text={opt} />
-                        </div>
-                      ))}
-                    </div>
+            /* Render Exam Sheet for Active Variant */
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-10 shadow-sm">
+              <OfficialExamHeader config={config} activeCode={activeCodeDisplay} />
+
+              {activeQuestions.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 space-y-3">
+                  <FileText className="w-10 h-10 mx-auto text-slate-300" />
+                  <p className="font-semibold text-sm">Chưa có câu hỏi cho đề thi này.</p>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    Thầy/Cô có thể bấm "TẠO ĐỀ THI VỚI AI" ở bảng cấu hình hoặc nhấn nút dưới đây để nạp ngay bộ đề mẫu chuẩn CV 7991 (gồm 4 mã đề 101 - 104 & Bảng đối chiếu) để trải nghiệm:
+                  </p>
+                  {onLoadSampleExam && (
+                    <button
+                      onClick={onLoadSampleExam}
+                      className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      <span>✨ Nạp Bộ Đề Mẫu Chuẩn CV 7991 (Sẵn 4 Mã 101-104)</span>
+                    </button>
                   )}
                 </div>
-              ))}
+              ) : (
+                <div
+                  className="space-y-6 font-exam text-slate-900"
+                  style={getDisplayScaleStyle(config.appUiScale)}
+                >
+                  {/* Indicator for variant */}
+                  {displayCodes.length > 1 && (
+                    <div className="no-print p-2.5 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs text-blue-900">
+                      <div className="flex items-center space-x-2 font-bold">
+                        <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-mono">
+                          MÃ ĐỀ: {activeCodeDisplay}
+                        </span>
+                        <span>
+                          {activeVariant?.isBase
+                            ? 'Đây là Mã đề gốc 101'
+                            : `Đã hoán vị an toàn theo chuẩn CV 7991 (khóa ngữ liệu & cập nhật key)`}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setSelectedSubTab('matrix_comparison')}
+                        className="text-blue-700 hover:text-blue-900 underline font-bold cursor-pointer"
+                      >
+                        Xem bảng đối chiếu đáp án song song →
+                      </button>
+                    </div>
+                  )}
+
+                  {activeQuestions.map((q, idx) => (
+                    <div
+                      key={q.id || idx}
+                      className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
+                    >
+                      <div className="font-bold flex items-start justify-between">
+                        <div>
+                          Câu {idx + 1} ({q.score || 0.25} điểm): <MathRenderer text={q.question} />
+                        </div>
+                      </div>
+
+                      {/* Reading Passage if attached */}
+                      {q.passage && (
+                        <div className="p-3 bg-amber-50/50 rounded-lg border-l-4 border-amber-400 text-xs italic text-slate-800">
+                          <MathRenderer text={q.passage} />
+                        </div>
+                      )}
+
+                      {/* Part 1 Options */}
+                      {q.options && q.options.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 text-xs font-mono">
+                          {q.options.map((opt, oIdx) => (
+                            <div
+                              key={oIdx}
+                              className="p-1.5 rounded bg-slate-50 border border-slate-200 flex items-center"
+                            >
+                              <MathRenderer text={opt} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Part 2 Sub-items */}
+                      {q.subItems && q.subItems.length > 0 && (
+                        <div className="pl-4 space-y-1 text-xs">
+                          {q.subItems.map((sub, sIdx) => (
+                            <div key={sIdx} className="flex items-start space-x-2">
+                              <span className="font-bold">{sub.label})</span>
+                              <span><MathRenderer text={sub.statement} /></span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* Tab 3: BẢNG ĐÁP ÁN */}
+      {/* Tab: ĐỐI CHIẾU MÃ ĐỀ (Từ Navigation Tabs chính) */}
+      {activeTab === 'comparison' && (
+        <MasterComparisonMatrixView
+          config={config}
+          shuffledCodes={displayCodes}
+          onSelectCode={(c) => {
+            setSelectedSubTab(c);
+            onTabChange('exam');
+            if (onSelectExamCode) onSelectExamCode(c);
+          }}
+        />
+      )}
+
+      {/* Tab 3: BẢNG ĐÁP ÁN (HỖ TRỢ THEO TỪNG MÃ ĐỀ & BẢNG TỔNG HỢP) */}
       {activeTab === 'answers' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4 text-xs">
-          <h3 className="font-bold text-slate-800 text-sm uppercase">Bảng Đáp Án Chi Tiết</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse border border-slate-300">
-              <thead>
-                <tr className="bg-slate-100 font-bold border-b border-slate-300">
-                  <th className="p-2 border border-slate-300 text-center w-12">STT</th>
-                  <th className="p-2 border border-slate-300">Nội dung câu hỏi</th>
-                  <th className="p-2 border border-slate-300 w-24 text-center">Đáp án</th>
-                  <th className="p-2 border border-slate-300 w-20 text-center">Điểm</th>
-                </tr>
-              </thead>
-              <tbody>
-                {questions.map((q, idx) => (
-                  <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
-                    <td className="p-2 text-center font-bold">{idx + 1}</td>
-                    <td className="p-2 font-mono"><MathRenderer text={q.question} /></td>
-                    <td className="p-2 text-center font-bold text-emerald-700">{String(q.correctAnswer)}</td>
-                    <td className="p-2 text-center font-bold text-blue-700">{q.score}đ</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="space-y-4">
+          {displayCodes.length > 1 && (
+            <div className="no-print flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+              <div className="flex items-center space-x-2">
+                <span className="font-bold text-slate-700">Xem đáp án cho:</span>
+                <div className="flex flex-wrap gap-1">
+                  {displayCodes.map((item) => (
+                    <button
+                      key={item.code}
+                      onClick={() => setSelectedSubTab(item.code)}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                        selectedSubTab === item.code
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-white text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      Mã {item.code}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setSelectedSubTab('matrix_comparison')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                      selectedSubTab === 'matrix_comparison'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                    }`}
+                  >
+                    📑 Bảng Ma Trận Đối Chiếu
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedSubTab === 'matrix_comparison' ? (
+            <MasterComparisonMatrixView
+              config={config}
+              shuffledCodes={displayCodes}
+              onSelectCode={(c) => setSelectedSubTab(c)}
+            />
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4 text-xs">
+              <div className="flex items-center justify-between border-b pb-3">
+                <h3 className="font-bold text-slate-800 text-sm uppercase">
+                  Bảng Đáp Án Chi Tiết - MÃ ĐỀ {activeCodeDisplay}
+                </h3>
+                {activeVariant?.isBase ? (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800">
+                    Đề Gốc
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                    Mã Đã Trộn (CV 7991)
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse border border-slate-300">
+                  <thead>
+                    <tr className="bg-slate-100 font-bold border-b border-slate-300">
+                      <th className="p-2 border border-slate-300 text-center w-12">STT</th>
+                      {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                        <th className="p-2 border border-slate-300 text-center w-24">Vị trí gốc (101)</th>
+                      )}
+                      <th className="p-2 border border-slate-300">Nội dung câu hỏi</th>
+                      <th className="p-2 border border-slate-300 w-28 text-center">Đáp án</th>
+                      <th className="p-2 border border-slate-300 w-20 text-center">Điểm</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeQuestions.map((q, idx) => {
+                      // Find original position in base exam if this is a variant
+                      let baseSttDisplay = idx + 1;
+                      if (!activeVariant?.isBase && shuffledCodes[0]) {
+                        const foundIdx = shuffledCodes[0].questions.findIndex((bq) => bq.id === q.id);
+                        if (foundIdx >= 0) baseSttDisplay = foundIdx + 1;
+                      }
+
+                      let displayAns = String(q.correctAnswer || '');
+                      if (q.subItems && q.subItems.length > 0) {
+                        displayAns = q.subItems.map((s) => `${s.label}: ${s.isCorrect ? 'Đ' : 'S'}`).join(' | ');
+                      }
+
+                      return (
+                        <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
+                          <td className="p-2 text-center font-bold">{idx + 1}</td>
+                          {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                            <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
+                              Câu {baseSttDisplay}
+                            </td>
+                          )}
+                          <td className="p-2 font-mono">
+                            <MathRenderer text={q.question} />
+                          </td>
+                          <td className="p-2 text-center font-bold text-emerald-700">
+                            {displayAns}
+                          </td>
+                          <td className="p-2 text-center font-bold text-blue-700">{q.score}đ</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -327,12 +734,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4 text-xs">
           <h3 className="font-bold text-slate-800 text-sm uppercase">Hướng Dẫn Chấm Tự Luận Step-by-Step</h3>
           <div className="space-y-3">
-            {questions
+            {activeQuestions
               .filter((q) => q.part === 'part4' || q.type === 'essay')
               .map((q, idx) => (
                 <div key={q.id || idx} className="p-4 border rounded-xl bg-slate-50 space-y-2">
-                  <p className="font-bold">Câu Tự Luận {idx + 1} ({q.score} điểm): <MathRenderer text={q.question} /></p>
-                  <p className="text-slate-700 bg-white p-2 rounded border"><MathRenderer text={q.explanation} /></p>
+                  <p className="font-bold">
+                    Câu Tự Luận {idx + 1} ({q.score} điểm): <MathRenderer text={q.question} />
+                  </p>
+                  <div className="text-slate-700 bg-white p-3 rounded border space-y-1">
+                    <p className="font-semibold text-slate-800">Hướng dẫn chấm & Thang điểm:</p>
+                    <MathRenderer text={q.explanation} />
+                  </div>
                 </div>
               ))}
           </div>
@@ -362,7 +774,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
               <h4 className="font-bold text-indigo-900">Khái niệm & Công thức trọng tâm:</h4>
               <ul className="list-disc pl-5 space-y-1">
                 {studyGuide.coreConcepts.map((c, i) => (
-                  <li key={i}><strong>{c.term}:</strong> {c.definition}</li>
+                  <li key={i}>
+                    <strong>{c.term}:</strong> {c.definition}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -370,12 +784,23 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         </div>
       )}
 
+      {/* Modal Cấu hình Trộn Nhiều Mã Đề (Lựa chọn A) */}
+      {showShuffleModal && (
+        <ShuffleModal
+          isOpen={showShuffleModal}
+          onClose={() => setShowShuffleModal(false)}
+          onConfirm={handleExecuteShuffle}
+          grade={config.grade}
+          questionCount={questions.length}
+        />
+      )}
+
       {/* Modal Xuất Azota & K12Online */}
       {showAzotaModal && (
         <AzotaExportModal
           isOpen={showAzotaModal}
           onClose={() => setShowAzotaModal(false)}
-          questions={questions}
+          questions={activeQuestions}
           config={config}
         />
       )}

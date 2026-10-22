@@ -29,6 +29,12 @@ import { runCv7991Audit } from './utils/cv7991Audit';
 import { initializeAndClearModelCache } from './utils/geminiModels';
 import { downloadStandaloneSingleFileHtml } from './utils/singleFileBundle';
 import { releaseCachedFile } from './utils/memoryManager';
+import {
+  SAMPLE_CHUDE_LIST,
+  SAMPLE_CAU_LIST,
+  SAMPLE_QUESTIONS_CV7991,
+} from './data/sampleExamCv7991';
+import { generateShuffledCodes } from './utils/examShuffler';
 
 const STORAGE_KEY_API_KEY = 'exam_ai_gemini_key_v2';
 
@@ -88,19 +94,29 @@ const DEFAULT_CONFIG: ExamConfig = {
   },
 };
 
-const createDefaultTabState = (grade: string): GradeTabState => ({
-  grade,
-  subject: 'Toán học',
-  textbook: 'Kết nối tri thức với cuộc sống',
-  examTitle: 'ĐỀ KIỂM TRA GIỮA HỌC KỲ I',
-  durationMinutes: 90,
-  chuDeList: [],
-  luat: DEFAULT_LUAT,
-  nangLucList: [],
-  cauList: [],
-  uploadedDocs: [],
-  generatedQuestions: [],
-});
+const createDefaultTabState = (grade: string): GradeTabState => {
+  const isDefaultDemo = grade === '12';
+  const initialQuestions = isDefaultDemo ? SAMPLE_QUESTIONS_CV7991 : [];
+  const initialCodes = isDefaultDemo
+    ? generateShuffledCodes(SAMPLE_QUESTIONS_CV7991, { variantCount: 4, namingPreset: '101' }, '12')
+    : [];
+
+  return {
+    grade,
+    subject: 'Toán học',
+    textbook: 'Kết nối tri thức với cuộc sống',
+    examTitle: 'ĐỀ KIỂM TRA GIỮA HỌC KỲ I',
+    durationMinutes: 90,
+    chuDeList: isDefaultDemo ? SAMPLE_CHUDE_LIST : [],
+    luat: DEFAULT_LUAT,
+    nangLucList: [],
+    cauList: isDefaultDemo ? SAMPLE_CAU_LIST : [],
+    uploadedDocs: [],
+    generatedQuestions: initialQuestions,
+    shuffledCodes: initialCodes,
+    activeExamCode: '101',
+  };
+};
 
 export default function App() {
   // Global Model Cache Cleaning
@@ -260,7 +276,7 @@ export default function App() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showStandardExporterModal, setShowStandardExporterModal] = useState(false);
   const [printDocType, setPrintDocType] = useState<'exam' | 'answers' | 'matrix' | 'spec' | 'study_guide' | 'full'>('exam');
-  const [workspaceTab, setWorkspaceTab] = useState<'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide'>('matrix');
+  const [workspaceTab, setWorkspaceTab] = useState<'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide' | 'comparison'>('matrix');
 
   const toast = useToast();
 
@@ -273,9 +289,31 @@ export default function App() {
       cauList: [],
       uploadedDocs: [],
       generatedQuestions: [],
+      shuffledCodes: [],
+      activeExamCode: '101',
       unsolvableReason: undefined,
     }));
     toast.success('✨ Đã xóa sạch toàn bộ tài liệu, ma trận và kết quả kiểm tra cũ!');
+  };
+
+  // Load Sample Exam (Grade 12 CV 7991 with 4 pre-shuffled codes)
+  const handleLoadSampleExam = () => {
+    const autoCodes = generateShuffledCodes(
+      SAMPLE_QUESTIONS_CV7991,
+      { variantCount: 4, namingPreset: '101' },
+      activeGrade
+    );
+
+    updateCurrentTabState((prev) => ({
+      ...prev,
+      chuDeList: SAMPLE_CHUDE_LIST,
+      cauList: SAMPLE_CAU_LIST,
+      generatedQuestions: SAMPLE_QUESTIONS_CV7991,
+      shuffledCodes: autoCodes,
+      activeExamCode: '101',
+    }));
+    setWorkspaceTab('exam');
+    toast.success('🎉 Đã nạp thành công Bộ đề mẫu chuẩn CV 7991 (gồm 4 mã đề 101, 102, 103, 104 & Bảng đối chiếu)!');
   };
 
   // Generate Questions with Gemini AI
@@ -300,13 +338,21 @@ export default function App() {
         currentTabState.luat
       );
 
+      const autoCodes = generateShuffledCodes(
+        generated,
+        { variantCount: 4, namingPreset: '101' },
+        activeGrade
+      );
+
       updateCurrentTabState((prev) => ({
         ...prev,
         generatedQuestions: generated,
+        shuffledCodes: autoCodes,
+        activeExamCode: '101',
       }));
 
       setWorkspaceTab('exam');
-      toast.success(`🎉 Đã sinh thành công ${generated.length} câu hỏi theo đúng Ma trận và Bản đặc tả!`);
+      toast.success(`🎉 Đã sinh thành công ${generated.length} câu hỏi và tự động tạo 4 mã đề (101, 102, 103, 104) chuẩn CV 7991!`);
     } catch (err: any) {
       console.error('Generate error:', err);
       toast.error(`Lỗi sinh đề: ${err.message}`);
@@ -425,8 +471,14 @@ export default function App() {
                   cauList: updated,
                 }));
               }}
-              onPrint={(type) => {
+              onPrint={(type, examCode) => {
                 setPrintDocType(type);
+                if (examCode) {
+                  updateCurrentTabState((prev) => ({
+                    ...prev,
+                    activeExamCode: examCode,
+                  }));
+                }
                 setShowPrintModal(true);
               }}
               onOpenStandardExporter={() => setShowStandardExporterModal(true)}
@@ -437,6 +489,21 @@ export default function App() {
                 }));
               }}
               auditPassed={auditReport.passed}
+              shuffledCodes={currentTabState.shuffledCodes || []}
+              onUpdateShuffledCodes={(codes) => {
+                updateCurrentTabState((prev) => ({
+                  ...prev,
+                  shuffledCodes: codes,
+                }));
+              }}
+              activeExamCode={currentTabState.activeExamCode || '101'}
+              onSelectExamCode={(code) => {
+                updateCurrentTabState((prev) => ({
+                  ...prev,
+                  activeExamCode: code,
+                }));
+              }}
+              onLoadSampleExam={handleLoadSampleExam}
             />
           </section>
         </main>
@@ -460,10 +527,15 @@ export default function App() {
             onClose={() => setShowPrintModal(false)}
             docType={printDocType}
             config={config}
-            questions={currentTabState.generatedQuestions}
+            questions={
+              (currentTabState.shuffledCodes &&
+                currentTabState.shuffledCodes.find((c) => c.code === currentTabState.activeExamCode)?.questions) ||
+              currentTabState.generatedQuestions
+            }
             chuDeList={currentTabState.chuDeList}
             cauList={currentTabState.cauList}
             luat={currentTabState.luat}
+            examCode={currentTabState.activeExamCode || '101'}
           />
         )}
 
@@ -473,6 +545,8 @@ export default function App() {
           onClose={() => setShowStandardExporterModal(false)}
           config={config}
           questions={currentTabState.generatedQuestions}
+          shuffledCodes={currentTabState.shuffledCodes || []}
+          initialExamCode={currentTabState.activeExamCode || '101'}
           onChangeConfig={(updated) => {
             updateCurrentTabState((prev) => ({
               ...prev,

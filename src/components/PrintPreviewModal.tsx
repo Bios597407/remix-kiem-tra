@@ -54,6 +54,7 @@ interface PrintPreviewModalProps {
   chuDeList?: ChuDeItem[];
   cauList?: CauItem[];
   luat?: LuatConfig;
+  examCode?: string;
 }
 
 export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
@@ -65,6 +66,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   chuDeList = [],
   cauList = [],
   luat,
+  examCode = '101',
 }) => {
   const toast = useToast();
   const [activeDocType, setActiveDocType] = useState<PrintDocType>(docType);
@@ -164,7 +166,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
             {/* View 1: ĐỀ KIỂM TRA */}
             {(activeDocType === 'exam' || activeDocType === 'full') && (
               <div className="space-y-6">
-                <OfficialExamHeader config={config} activeCode="101" />
+                <OfficialExamHeader config={config} activeCode={examCode || '101'} />
 
                 <div className="space-y-4 font-serif text-sm leading-relaxed">
                   {questions.map((q, idx) => (
