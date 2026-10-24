@@ -16,6 +16,7 @@ import {
   Layers,
   Download,
   ArrowDownRight,
+  AlertCircle,
 } from 'lucide-react';
 import {
   ExamConfig,
@@ -23,6 +24,7 @@ import {
   ChuDeItem,
   LuatConfig,
   NangLucItem,
+  UploadedDocItem,
 } from '../types/exam';
 import { extractTextFromFile } from '../utils/fileParser';
 import { useToast } from './Toast';
@@ -47,6 +49,14 @@ interface ConfigPanelProps {
   activeGrade: string;
   availableGrades: string[];
   activeTabs: string[];
+  docCountsByGrade?: Record<string, number>;
+  onProcessUploadedDocs?: (
+    docs: UploadedDocItem[],
+    inferredGrade?: string,
+    inferredMeta?: any
+  ) => void;
+  otherTabsWithDocs?: Array<{ grade: string; docs: UploadedDocItem[] }>;
+  onCopyDocsFromGrade?: (fromGrade: string) => void;
   onSelectGradeLevel: (level: GradeLevel) => void;
   onSelectTab: (grade: string) => void;
   onAddTab: (grade: string) => void;
@@ -70,6 +80,10 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   activeGrade,
   availableGrades,
   activeTabs,
+  docCountsByGrade,
+  onProcessUploadedDocs,
+  otherTabsWithDocs,
+  onCopyDocsFromGrade,
   onSelectGradeLevel,
   onSelectTab,
   onAddTab,
@@ -112,16 +126,20 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       isAi: false,
     });
 
-    onChangeConfig({
-      ...config,
-      subject: inferred.subject,
-      textbook: inferred.textbook,
-      grade: inferred.grade || config.grade,
-      gradeLevel: inferred.gradeLevel || config.gradeLevel,
-    });
+    if (inferred.grade && inferred.grade !== config.grade && onProcessUploadedDocs) {
+      onProcessUploadedDocs(config.uploadedDocs, inferred.grade, inferred);
+    } else {
+      onChangeConfig({
+        ...config,
+        subject: inferred.subject,
+        textbook: inferred.textbook,
+        grade: inferred.grade || config.grade,
+        gradeLevel: inferred.gradeLevel || config.gradeLevel,
+      });
 
-    if (inferred.grade && inferred.grade !== config.grade) {
-      onAddTab(inferred.grade);
+      if (inferred.grade && inferred.grade !== config.grade) {
+        onAddTab(inferred.grade);
+      }
     }
 
     toast.success(`🎯 AI đã nhận diện lại từ tài liệu: Môn "${inferred.subject}" • Bộ sách "${inferred.textbook}"!`);
@@ -326,18 +344,25 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       isAi: false,
     });
 
-    onChangeConfig({
-      ...config,
-      uploadedDocs: newDocs,
-      subject: instantInfer.subject || config.subject,
-      textbook: instantInfer.textbook || config.textbook,
-      grade: instantInfer.grade || config.grade,
-      gradeLevel: instantInfer.gradeLevel || config.gradeLevel,
-      topicTitle: config.topicTitle ? `${config.topicTitle}\n${fileTitles}`.trim() : fileTitles,
-      chapter: config.chapter ? config.chapter : 'Chương I',
-      knowledgeScope: config.knowledgeScope ? config.knowledgeScope : 'Chương I',
-      readingPassage: fullTextContent || config.readingPassage || '',
-    });
+    if (onProcessUploadedDocs) {
+      onProcessUploadedDocs(newDocs, instantInfer.grade, instantInfer);
+    } else {
+      onChangeConfig({
+        ...config,
+        uploadedDocs: newDocs,
+        subject: instantInfer.subject || config.subject,
+        textbook: instantInfer.textbook || config.textbook,
+        grade: instantInfer.grade || config.grade,
+        gradeLevel: instantInfer.gradeLevel || config.gradeLevel,
+        topicTitle: config.topicTitle ? `${config.topicTitle}\n${fileTitles}`.trim() : fileTitles,
+        chapter: config.chapter ? config.chapter : 'Chương I',
+        knowledgeScope: config.knowledgeScope ? config.knowledgeScope : 'Chương I',
+        readingPassage: fullTextContent || config.readingPassage || '',
+      });
+      if (instantInfer.grade && instantInfer.grade !== config.grade) {
+        onAddTab(instantInfer.grade);
+      }
+    }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
 
@@ -522,6 +547,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               activeGrade={activeGrade}
               availableGrades={availableGrades}
               activeTabs={activeTabs}
+              docCountsByGrade={docCountsByGrade}
               onSelectGradeLevel={onSelectGradeLevel}
               onSelectTab={onSelectTab}
               onAddTab={onAddTab}
@@ -891,10 +917,46 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                     })}
                   </div>
                 ) : (
-                  <div className="p-2.5 rounded-lg bg-blue-50/50 border border-blue-100 text-center">
-                    <span className="text-[11px] text-blue-700 font-medium">
-                      Chưa nạp tài liệu. Bạn có thể bấm nút <strong>"Thư viện GDPT 2018"</strong> ở trên để nạp nhanh!
-                    </span>
+                  <div className="space-y-2">
+                    <div className="p-2.5 rounded-lg bg-blue-50/50 border border-blue-100 text-center">
+                      <span className="text-[11px] text-blue-700 font-medium">
+                        Tab <strong>Khối Lớp {config.grade}</strong> chưa nạp tài liệu riêng. Hãy kéo thả file hoặc bấm nút <strong>"Thư viện GDPT 2018"</strong> ở trên!
+                      </span>
+                    </div>
+
+                    {otherTabsWithDocs && otherTabsWithDocs.length > 0 && (
+                      <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-left space-y-1.5 shadow-2xs">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Phát hiện tài liệu đã nạp ở Khối khác:</span>
+                        </div>
+                        <div className="space-y-1 pl-1">
+                          {otherTabsWithDocs.map(({ grade: otherGrade, docs }) => (
+                            <div
+                              key={otherGrade}
+                              className="flex flex-wrap items-center justify-between gap-1.5 p-1.5 bg-white rounded border border-amber-200 text-xs"
+                            >
+                              <div className="flex items-center gap-1 min-w-0 max-w-[70%]">
+                                <span className="font-extrabold text-blue-700 shrink-0">Khối {otherGrade}:</span>
+                                <span className="text-slate-700 font-medium truncate" title={docs.map((d) => d.name).join(', ')}>
+                                  {docs.length} file ({docs.map((d) => d.name).join(', ')})
+                                </span>
+                              </div>
+                              {onCopyDocsFromGrade && (
+                                <button
+                                  type="button"
+                                  onClick={() => onCopyDocsFromGrade(otherGrade)}
+                                  className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-bold transition shrink-0 cursor-pointer shadow-2xs"
+                                  title={`Chép toàn bộ ${docs.length} file từ Khối ${otherGrade} sang Khối ${config.grade}`}
+                                >
+                                  📥 Chép sang Khối {config.grade}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

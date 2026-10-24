@@ -223,6 +223,14 @@ export interface ExamSpecificationRow {
   score: number;
 }
 
+export interface UploadedDocItem {
+  id: string;
+  name: string;
+  content: string;
+  size: number;
+  mimeType?: string;
+}
+
 export interface ExamConfig {
   schoolName: string;
   examTitle: string;
@@ -245,7 +253,7 @@ export interface ExamConfig {
   nangLuc: NangLucItem[];
   
   // Storage for multi-doc analysis
-  uploadedDocs: Array<{ id: string; name: string; content: string; size: number; mimeType?: string }>;
+  uploadedDocs: UploadedDocItem[];
 
   // Non-optional required sectionCounts for backwards compatibility
   sectionCounts: {

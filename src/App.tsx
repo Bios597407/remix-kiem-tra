@@ -239,6 +239,96 @@ export default function App() {
     }));
   };
 
+  // Tính số lượng tài liệu đã nạp theo từng khối lớp để hiển thị trực tiếp lên Tab
+  const docCountsByGrade = useMemo(() => {
+    const counts: Record<string, number> = {};
+    Object.keys(tabStates).forEach((g) => {
+      counts[g] = tabStates[g]?.uploadedDocs?.length || 0;
+    });
+    return counts;
+  }, [tabStates]);
+
+  // Danh sách các tab khối khác đang có tài liệu nạp (để gợi ý sao chép / cảnh báo trực quan)
+  const otherTabsWithDocs = useMemo(() => {
+    return Object.keys(tabStates)
+      .filter((g) => g !== activeGrade && (tabStates[g]?.uploadedDocs?.length || 0) > 0)
+      .map((g) => ({
+        grade: g,
+        docs: tabStates[g].uploadedDocs || [],
+      }));
+  }, [tabStates, activeGrade]);
+
+  // Xử lý nạp tài liệu: Tự động chuyển file đúng khối khi AI nhận diện khác khối hiện tại
+  const handleProcessUploadedDocs = (
+    docs: any[],
+    inferredGrade?: string,
+    inferredMeta?: any
+  ) => {
+    const finalGrade = inferredGrade || activeGrade;
+    const isDifferentGrade = finalGrade !== activeGrade;
+
+    setTabStates((prev) => {
+      const next = { ...prev };
+      // Nếu tự động chuyển sang khối lớp khác thì gỡ tài liệu khỏi khối lớp cũ để tránh lưu nhầm chỗ
+      if (isDifferentGrade && next[activeGrade]) {
+        const docIds = new Set(docs.map((d) => d.id));
+        next[activeGrade] = {
+          ...next[activeGrade],
+          uploadedDocs: (next[activeGrade].uploadedDocs || []).filter((d) => !docIds.has(d.id)),
+        };
+      }
+
+      const targetTab = next[finalGrade] || createDefaultTabState(finalGrade);
+      const fileTitles = docs.map((d) => d.name.replace(/\.[^/.]+$/, '')).join('\n');
+      const fullText = docs.map((d) => d.content).join('\n\n');
+
+      next[finalGrade] = {
+        ...targetTab,
+        grade: finalGrade,
+        uploadedDocs: docs,
+        subject: inferredMeta?.subject || targetTab.subject,
+        textbook: inferredMeta?.textbook || targetTab.textbook,
+        topicTitle: targetTab.topicTitle ? `${targetTab.topicTitle}\n${fileTitles}`.trim() : fileTitles,
+        readingPassage: fullText || targetTab.readingPassage || '',
+      };
+
+      return next;
+    });
+
+    if (inferredMeta?.gradeLevel && inferredMeta.gradeLevel !== gradeLevel) {
+      setGradeLevel(inferredMeta.gradeLevel);
+    }
+
+    if (!activeTabs.includes(finalGrade)) {
+      setActiveTabs((prevTabs) => [...prevTabs, finalGrade]);
+    }
+
+    if (isDifferentGrade) {
+      setActiveGrade(finalGrade);
+      toast.success(
+        `🎯 AI nhận diện tài liệu thuộc Khối Lớp ${finalGrade} (Môn: "${inferredMeta?.subject || 'Công nghệ'}"): Đã tự động chuyển tài liệu sang đúng Tab Khối Lớp ${finalGrade}!`
+      );
+    } else {
+      toast.success(`Đã nạp ${docs.length} tài liệu vào Tab Khối Lớp ${finalGrade}!`);
+    }
+  };
+
+  // Sao chép tài liệu từ một khối khác sang khối hiện tại chỉ với 1 cú click
+  const handleCopyDocsFromGrade = (fromGrade: string) => {
+    const sourceDocs = tabStates[fromGrade]?.uploadedDocs || [];
+    if (sourceDocs.length === 0) return;
+
+    updateCurrentTabState((prev) => ({
+      ...prev,
+      uploadedDocs: [...(prev.uploadedDocs || []), ...sourceDocs],
+      readingPassage: prev.readingPassage
+        ? `${prev.readingPassage}\n\n${sourceDocs.map((d) => d.content).join('\n\n')}`
+        : sourceDocs.map((d) => d.content).join('\n\n'),
+    }));
+
+    toast.success(`Đã sao chép ${sourceDocs.length} tài liệu từ Khối ${fromGrade} sang Khối ${activeGrade}!`);
+  };
+
   // Auto-generate or update "cau" allocation when chuDeList or luat changes
   useEffect(() => {
     if (currentTabState.chuDeList && currentTabState.chuDeList.length > 0) {
@@ -437,6 +527,10 @@ export default function App() {
               activeGrade={activeGrade}
               availableGrades={gradeLevel === 'THPT' ? ['12', '11', '10'] : ['9', '8', '7']}
               activeTabs={activeTabs}
+              docCountsByGrade={docCountsByGrade}
+              onProcessUploadedDocs={handleProcessUploadedDocs}
+              otherTabsWithDocs={otherTabsWithDocs}
+              onCopyDocsFromGrade={handleCopyDocsFromGrade}
               onSelectGradeLevel={handleSelectGradeLevel}
               onSelectTab={handleSelectTab}
               onAddTab={handleAddTab}

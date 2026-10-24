@@ -172,6 +172,37 @@ export function inferSubjectAndTextbook(
     }
   }
 
+  // Bổ sung suy luận khối lớp theo đặc thù môn học GDPT 2018 nếu tài liệu không ghi rõ chữ 'Lớp X'
+  if (!grade) {
+    if (
+      combined.includes('cơ khí chế tạo') ||
+      combined.includes('gia công cơ khí') ||
+      combined.includes('động cơ đốt trong') ||
+      combined.includes('chăn nuôi')
+    ) {
+      grade = '11';
+      gradeLevel = 'THPT';
+      reasons.push('Nhận diện chuyên đề Cơ khí chế tạo / Chăn nuôi thuộc Công nghệ 11 (GDPT 2018)');
+    } else if (
+      combined.includes('điện - điện tử') ||
+      combined.includes('mạch điện xoay chiều') ||
+      combined.includes('lâm nghiệp') ||
+      combined.includes('thủy sản')
+    ) {
+      grade = '12';
+      gradeLevel = 'THPT';
+      reasons.push('Nhận diện chuyên đề Công nghệ Điện tử / Thủy sản thuộc Công nghệ 12 (GDPT 2018)');
+    } else if (
+      combined.includes('vẽ kĩ thuật') ||
+      combined.includes('thiết kế kĩ thuật') ||
+      combined.includes('trồng trọt')
+    ) {
+      grade = '10';
+      gradeLevel = 'THPT';
+      reasons.push('Nhận diện Thiết kế kĩ thuật / Trồng trọt thuộc Công nghệ 10 (GDPT 2018)');
+    }
+  }
+
   // 3. NHẬN DIỆN MÔN HỌC
   // Kiểm tra tên file hoặc tiêu đề đầu văn bản trước (độ ưu tiên cao nhất)
   const headerSlice = (fileName + ' ' + text.slice(0, 1500)).toLowerCase();

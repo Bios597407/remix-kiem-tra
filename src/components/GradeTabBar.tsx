@@ -7,6 +7,7 @@ interface GradeTabBarProps {
   activeGrade: string;
   availableGrades: string[];
   activeTabs: string[];
+  docCountsByGrade?: Record<string, number>;
   onSelectGradeLevel: (level: GradeLevel) => void;
   onSelectTab: (grade: string) => void;
   onAddTab: (grade: string) => void;
@@ -19,6 +20,7 @@ export const GradeTabBar: React.FC<GradeTabBarProps> = ({
   activeGrade,
   availableGrades,
   activeTabs,
+  docCountsByGrade,
   onSelectGradeLevel,
   onSelectTab,
   onAddTab,
@@ -73,34 +75,49 @@ export const GradeTabBar: React.FC<GradeTabBarProps> = ({
 
       {/* Tabs List */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-        {activeTabs.map((g) => (
-          <div
-            key={g}
-            onClick={() => onSelectTab(g)}
-            className={`group flex items-center gap-2 px-3 py-2 rounded-t-lg border-t-2 border-x font-bold text-xs cursor-pointer transition ${
-              activeGrade === g
-                ? 'bg-white border-t-blue-600 border-x-slate-300 text-blue-900 shadow-xs'
-                : 'bg-slate-100 border-t-transparent border-x-slate-200 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            <GraduationCap className="w-4 h-4 text-blue-600" />
-            <span>Khối Lớp {g}</span>
+        {activeTabs.map((g) => {
+          const docCount = docCountsByGrade?.[g] ?? 0;
+          return (
+            <div
+              key={g}
+              onClick={() => onSelectTab(g)}
+              className={`group flex items-center gap-2 px-3 py-2 rounded-t-lg border-t-2 border-x font-bold text-xs cursor-pointer transition select-none ${
+                activeGrade === g
+                  ? 'bg-white border-t-blue-600 border-x-slate-300 text-blue-900 shadow-xs'
+                  : 'bg-slate-100 border-t-transparent border-x-slate-200 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4 text-blue-600 shrink-0" />
+              <span className="truncate">Khối Lớp {g}</span>
 
-            {activeTabs.length > 1 && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemoveTab(g);
-                }}
-                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 rounded transition"
-                title="Đóng Tab khối này"
+              {/* Badge số file tài liệu trực tiếp trên Tab */}
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold flex items-center gap-1 shrink-0 transition ${
+                  docCount > 0
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : 'bg-slate-200 text-slate-500'
+                }`}
+                title={`Khối Lớp ${g} đang có ${docCount} tài liệu nạp`}
               >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        ))}
+                📄 {docCount} file
+              </span>
+
+              {activeTabs.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveTab(g);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 rounded transition"
+                  title="Đóng Tab khối này"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         {/* Add new grade tab button */}
         {activeTabs.length < 3 && unusedGrades.length > 0 && (
