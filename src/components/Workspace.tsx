@@ -419,8 +419,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         </div>
       </div>
 
-      {/* Tab Content 1: MA TRẬN & ĐẶC TẢ INTERACTIVE DASHBOARD */}
-      {(activeTab === 'matrix' || activeTab === 'spec') && (
+      {/* Tab Content 1: MA TRẬN ĐỀ KIỂM TRA (VỚI BẢNG CÂU & AUDIT) */}
+      {activeTab === 'matrix' && (
         <InteractiveMatrixDashboard
           chuDeList={chuDeList}
           cauList={cauList}
@@ -429,7 +429,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           grade={config.grade}
           subject={config.subject}
           onUpdateCauList={onUpdateCauList}
+          showSpecTab={false}
+          defaultTab="matrix"
         />
+      )}
+
+      {/* Tab Content 2: BẢN ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KÌ (TRỰC TIẾP, KHÔNG TRÙNG NÚT) */}
+      {activeTab === 'spec' && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+          <OfficialSpecificationTable
+            chuDeList={chuDeList}
+            cauList={cauList}
+            luat={luat}
+            activeCompetencies={nangLucList}
+            config={config}
+          />
+        </div>
       )}
 
       {/* Tab 2: ĐỀ KIỂM TRA (VỚI THANH CHỌN MÃ ĐỀ & BẢNG ĐỐI CHIẾU) */}

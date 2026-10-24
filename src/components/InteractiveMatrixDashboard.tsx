@@ -16,6 +16,8 @@ interface InteractiveMatrixDashboardProps {
   subject: string;
   onUpdateCauList?: (updatedCau: CauItem[]) => void;
   className?: string;
+  defaultTab?: 'matrix' | 'spec' | 'cau' | 'audit';
+  showSpecTab?: boolean;
 }
 
 export const InteractiveMatrixDashboard: React.FC<InteractiveMatrixDashboardProps> = ({
@@ -27,9 +29,18 @@ export const InteractiveMatrixDashboard: React.FC<InteractiveMatrixDashboardProp
   subject,
   onUpdateCauList,
   className = '',
+  defaultTab = 'matrix',
+  showSpecTab = false,
 }) => {
-  const [activeTab, setActiveTab] = useState<'matrix' | 'spec' | 'cau' | 'audit'>('matrix');
+  const [activeTab, setActiveTab] = useState<'matrix' | 'spec' | 'cau' | 'audit'>(defaultTab);
   const [showTestModal, setShowTestModal] = useState(false);
+
+  // Sync activeTab when defaultTab changes
+  React.useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab]);
 
   const safeChuDeList = Array.isArray(chuDeList) ? chuDeList : [];
   const safeCauList = Array.isArray(cauList) ? cauList : [];
@@ -46,7 +57,7 @@ export const InteractiveMatrixDashboard: React.FC<InteractiveMatrixDashboardProp
   return (
     <div className={`space-y-6 ${className}`}>
 
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs - Clean, no duplicate Bản đặc tả button */}
       <div className="flex flex-wrap items-center justify-between border-b border-slate-200 pb-2 gap-2">
         <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
           <button
@@ -59,16 +70,18 @@ export const InteractiveMatrixDashboard: React.FC<InteractiveMatrixDashboardProp
           >
             📊 Ma trận Đề kiểm tra
           </button>
-          <button
-            onClick={() => setActiveTab('spec')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${
-              activeTab === 'spec'
-                ? 'bg-white text-blue-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            📋 Bản đặc tả Đề kiểm tra
-          </button>
+          {showSpecTab && (
+            <button
+              onClick={() => setActiveTab('spec')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${
+                activeTab === 'spec'
+                  ? 'bg-white text-blue-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              📋 Bản đặc tả Đề kiểm tra
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('cau')}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1 ${

@@ -9,7 +9,7 @@ import {
   CauItem,
   LuatConfig,
 } from '../types/exam';
-import { getUnifiedMatrixSpecData, UnifiedTableData } from './cv7991Engine';
+import { getUnifiedMatrixSpecData, UnifiedTableData, MatrixCellData } from './cv7991Engine';
 
 const WORD_HEADER_STYLE = `
   <style>
@@ -317,7 +317,7 @@ export function exportMatrixAndSpecsOnlyWordDoc(
 
   <div class="page-break"></div>
   <div class="bold uppercase" style="font-size: 12pt; margin-top: 10pt; margin-bottom: 6pt; color: #003366;">
-    B. BẢN ĐẶC TẢ KỸ THUẬT ĐỀ KIỂM TRA
+    B. BẢN ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KÌ
   </div>
   ${renderSpecTable(specs, matrix, config)}
 
@@ -400,7 +400,7 @@ export function exportMatrixAndSpecsCv7991WordDoc(
 
   <div class="page-break"></div>
   <div class="bold uppercase" style="font-size: 12pt; margin-top: 10pt; margin-bottom: 6pt; color: #003366;">
-    B. BẢN ĐẶC TẢ KỸ THUẬT ĐỀ KIỂM TRA
+    B. BẢN ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KÌ
   </div>
   ${renderCv7991SpecWord(unifiedData, config)}
 
@@ -1040,46 +1040,130 @@ function renderCv7991SpecWord(tableData: UnifiedTableData, config: ExamConfig): 
   const rows = tableData.rows;
 
   return `
-  <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt; text-align: center;" border="1">
+  <table style="width: 100%; border-collapse: collapse; font-size: 9pt; text-align: center;" border="1">
     <thead>
       <tr style="background-color: #f2f2f2; font-weight: bold;">
-        <th rowspan="2" style="width: 4%;">TT</th>
-        <th rowspan="2" style="width: 14%; text-align: left;">Chủ đề</th>
-        <th rowspan="2" style="width: 16%; text-align: left;">Nội dung/đơn vị kiến thức</th>
-        <th rowspan="2" style="width: 25%; text-align: left;">Yêu cầu cần đạt</th>
-        <th colspan="${showTln ? 12 : 9}">Số câu hỏi theo mức độ nhận thức</th>
+        <th rowspan="4" style="width: 4%;">TT</th>
+        <th rowspan="4" style="width: 14%; text-align: left;">Chủ đề/Chương</th>
+        <th rowspan="4" style="width: 15%; text-align: left;">Nội dung/đơn vị kiến thức</th>
+        <th rowspan="4" style="width: 27%; text-align: left;">Yêu cầu cần đạt</th>
+        <th colspan="${showTln ? 12 : 9}" style="background-color: #e2e8f0; text-transform: uppercase;">Số câu hỏi ở các mức độ đánh giá</th>
+      </tr>
+      <tr style="background-color: #f2f2f2; font-weight: bold;">
+        <th colspan="${showTln ? 9 : 6}">TNKQ</th>
+        <th colspan="3">Tự luận</th>
       </tr>
       <tr style="background-color: #f8fafc; font-weight: bold; font-size: 8.5pt;">
-        <th>NLC (B)</th><th>NLC (H)</th><th>NLC (VD)</th>
-        <th>ĐS (B)</th><th>ĐS (H)</th><th>ĐS (VD)</th>
-        ${showTln ? '<th>TLN (B)</th><th>TLN (H)</th><th>TLN (VD)</th>' : ''}
-        <th>TL (B)</th><th>TL (H)</th><th>TL (VD)</th>
+        <th colspan="3">Nhiều lựa chọn</th>
+        <th colspan="3">Đúng – Sai</th>
+        ${showTln ? '<th colspan="3">Trả lời ngắn</th>' : ''}
+        <th colspan="3">Tự luận</th>
+      </tr>
+      <tr style="background-color: #f2f2f2; font-weight: bold; font-size: 8pt;">
+        <th style="width: 4.5%;">Biết</th>
+        <th style="width: 4.5%;">Hiểu</th>
+        <th style="width: 4.5%;">V.Dụng</th>
+
+        <th style="width: 4.5%;">Biết</th>
+        <th style="width: 4.5%;">Hiểu</th>
+        <th style="width: 4.5%;">V.Dụng</th>
+
+        ${showTln ? `
+          <th style="width: 4.5%;">Biết</th>
+          <th style="width: 4.5%;">Hiểu</th>
+          <th style="width: 4.5%;">V.Dụng</th>
+        ` : ''}
+
+        <th style="width: 4.5%;">Biết</th>
+        <th style="width: 4.5%;">Hiểu</th>
+        <th style="width: 4.5%;">V.Dụng</th>
       </tr>
     </thead>
     <tbody>
       ${rows.map((r) => {
-        const yccdText = r.yccdList.map((y) => `• <b>[${y.ma}]</b>: ${y.noiDung} <i>(${y.mucToiDa})</i>`).join('<br>');
+        // Format YCCĐ string by cognitive levels exactly matching UI
+        const bietYccdList = r.yccdList.filter((y) => y.mucToiDa === 'Biet' || y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung');
+        const hieuYccdList = r.yccdList.filter((y) => y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung');
+        const vdYccdList = r.yccdList.filter((y) => y.mucToiDa === 'VanDung');
+
+        const hasBietQ =
+          r.matrixCells.NLC.Biet.count > 0 ||
+          r.matrixCells.DS.Biet.count > 0 ||
+          r.matrixCells.TLN.Biet.count > 0 ||
+          r.matrixCells.TL.Biet.count > 0;
+
+        const hasHieuQ =
+          r.matrixCells.NLC.Hieu.count > 0 ||
+          r.matrixCells.DS.Hieu.count > 0 ||
+          r.matrixCells.TLN.Hieu.count > 0 ||
+          r.matrixCells.TL.Hieu.count > 0;
+
+        const hasVdQ =
+          r.matrixCells.NLC.VanDung.count > 0 ||
+          r.matrixCells.DS.VanDung.count > 0 ||
+          r.matrixCells.TLN.VanDung.count > 0 ||
+          r.matrixCells.TL.VanDung.count > 0;
+
+        // Clean pedagogical YCCĐ text without developer codes [ND1.x] or (Biet)
+        let yccdHtml = '';
+        if (r.yccdList.length === 0) {
+          yccdHtml = '<i style="color: #b45309;">Chưa có YCCĐ</i>';
+        } else {
+          const blocks: string[] = [];
+          if (hasBietQ && bietYccdList.length > 0) {
+            const items = bietYccdList.map((y) => `&nbsp;&nbsp;• ${y.noiDung}${y.nangLuc ? ` <b>(${y.nangLuc})</b>` : ''}`).join('<br>');
+            blocks.push(`<b>• - Biết:</b><br>${items}`);
+          }
+          if (hasHieuQ && hieuYccdList.length > 0) {
+            const items = hieuYccdList.map((y) => `&nbsp;&nbsp;• ${y.noiDung}${y.nangLuc ? ` <b>(${y.nangLuc})</b>` : ''}`).join('<br>');
+            blocks.push(`<b>• - Hiểu:</b><br>${items}`);
+          }
+          if (hasVdQ && vdYccdList.length > 0) {
+            const items = vdYccdList.map((y) => `&nbsp;&nbsp;• ${y.noiDung}${y.nangLuc ? ` <b>(${y.nangLuc})</b>` : ''}`).join('<br>');
+            blocks.push(`<b>• - Vận dụng:</b><br>${items}`);
+          }
+          // Fallback if no questions are mapped yet to levels
+          if (blocks.length === 0) {
+            if (bietYccdList.length > 0) blocks.push(`<b>• - Biết:</b><br>` + bietYccdList.map(y => `&nbsp;&nbsp;• ${y.noiDung}`).join('<br>'));
+            if (hieuYccdList.length > 0) blocks.push(`<b>• - Hiểu:</b><br>` + hieuYccdList.map(y => `&nbsp;&nbsp;• ${y.noiDung}`).join('<br>'));
+            if (vdYccdList.length > 0) blocks.push(`<b>• - Vận dụng:</b><br>` + vdYccdList.map(y => `&nbsp;&nbsp;• ${y.noiDung}`).join('<br>'));
+          }
+          yccdHtml = blocks.join('<br><br>');
+        }
+
         const nlc = r.matrixCells.NLC;
         const ds = r.matrixCells.DS;
         const tln = r.matrixCells.TLN;
         const tl = r.matrixCells.TL;
 
+        const renderCellWord = (cell: MatrixCellData) => {
+          if (!cell || cell.count === 0) return '-';
+          if (cell.questionNumbersStr) {
+            return `<b>${cell.count}</b><br><span style="font-size: 8pt; color: #1e3a8a;">(${cell.questionNumbersStr})</span>`;
+          }
+          return `<b>${cell.count}</b>`;
+        };
+
         return `
         <tr>
-          <td style="font-weight: bold;">${r.stt}</td>
-          ${r.isFirstInChuDe ? `<td rowspan="${r.rowspanChuDe || 1}" style="text-align: left; vertical-align: top; font-weight: bold;">${r.chuDeTen}</td>` : ''}
-          <td style="text-align: left; padding: 3pt; font-weight: bold;">${r.noiDungTen}</td>
-          <td style="text-align: left; padding: 3pt;">${yccdText || '<i>Chưa có YCCĐ</i>'}</td>
-          <td>${nlc.Biet.questionNumbersStr || '-'}</td>
-          <td>${nlc.Hieu.questionNumbersStr || '-'}</td>
-          <td>${nlc.VanDung.questionNumbersStr || '-'}</td>
-          <td>${ds.Biet.questionNumbersStr || '-'}</td>
-          <td>${ds.Hieu.questionNumbersStr || '-'}</td>
-          <td>${ds.VanDung.questionNumbersStr || '-'}</td>
-          ${showTln ? `<td>${tln.Biet.questionNumbersStr || '-'}</td><td>${tln.Hieu.questionNumbersStr || '-'}</td><td>${tln.VanDung.questionNumbersStr || '-'}</td>` : ''}
-          <td>${tl.Biet.questionNumbersStr || '-'}</td>
-          <td>${tl.Hieu.questionNumbersStr || '-'}</td>
-          <td>${tl.VanDung.questionNumbersStr || '-'}</td>
+          <td style="font-weight: bold; vertical-align: top; padding: 4pt;">${r.stt}</td>
+          ${r.isFirstInChuDe ? `<td rowspan="${r.rowspanChuDe || 1}" style="text-align: left; vertical-align: top; font-weight: bold; padding: 4pt;">${r.chuDeTen}</td>` : ''}
+          <td style="text-align: left; vertical-align: top; padding: 4pt; font-weight: bold;">${r.noiDungTen}</td>
+          <td style="text-align: left; vertical-align: top; padding: 4pt; font-size: 8.5pt; line-height: 1.4;">${yccdHtml}</td>
+          <td style="vertical-align: top; padding: 4pt;">${renderCellWord(nlc.Biet)}</td>
+          <td style="vertical-align: top; padding: 4pt;">${renderCellWord(nlc.Hieu)}</td>
+          <td style="vertical-align: top; padding: 4pt;">${renderCellWord(nlc.VanDung)}</td>
+          <td style="vertical-align: top; padding: 4pt;">${renderCellWord(ds.Biet)}</td>
+          <td style="vertical-align: top; padding: 4pt;">${renderCellWord(ds.Hieu)}</td>
+          <td style="vertical-align: top; padding: 4pt;">${renderCellWord(ds.VanDung)}</td>
+          ${showTln ? `
+            <td style="vertical-align: top; padding: 4pt;">${renderCellWord(tln.Biet)}</td>
+            <td style="vertical-align: top; padding: 4pt;">${renderCellWord(tln.Hieu)}</td>
+            <td style="vertical-align: top; padding: 4pt;">${renderCellWord(tln.VanDung)}</td>
+          ` : ''}
+          <td style="vertical-align: top; padding: 4pt;">${renderCellWord(tl.Biet)}</td>
+          <td style="vertical-align: top; padding: 4pt;">${renderCellWord(tl.Hieu)}</td>
+          <td style="vertical-align: top; padding: 4pt;">${renderCellWord(tl.VanDung)}</td>
         </tr>
         `;
       }).join('')}
