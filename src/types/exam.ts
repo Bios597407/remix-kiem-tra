@@ -281,11 +281,18 @@ export interface ExamConfig {
   layoutFontSize?: 'small' | 'medium' | 'large';
   appUiScale?: 'compact' | 'standard' | 'relaxed';
   pageSize?: 'A4' | 'Letter';
-  balanceAnswersOption?: boolean;
   manualPageCount?: number | string;
 }
 
+export interface ExamOrigin {
+  grade: string;
+  subject: string;
+}
+
 export interface GradeTabState {
+  examRevision: number;
+  examOrigin?: ExamOrigin;
+  examNeedsRegeneration?: boolean;
   grade: string;
   subject: string;
   textbook: string;
@@ -315,6 +322,7 @@ export interface ShuffleOptions {
   customCodeList?: string[];
   shufflePart1Questions: boolean;
   shufflePart1Options: boolean;
+  balancePart1Answers?: boolean;
   shufflePart2Questions: boolean;
   shufflePart2SubItems: boolean;
   shufflePart3Questions: boolean;

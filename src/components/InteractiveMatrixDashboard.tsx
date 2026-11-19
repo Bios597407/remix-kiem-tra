@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChuDeItem, CauItem, LuatConfig, NangLucItem } from '../types/exam';
+import { ChuDeItem, CauItem, LuatConfig, NangLucItem, ExamOrigin } from '../types/exam';
 import OfficialMatrixTable from './OfficialMatrixTable';
 import OfficialSpecificationTable from './OfficialSpecificationTable';
 import MatrixAuditBar from './MatrixAuditBar';
@@ -14,6 +14,7 @@ interface InteractiveMatrixDashboardProps {
   activeCompetencies?: NangLucItem[];
   grade: string;
   subject: string;
+  examOrigin?: ExamOrigin | null;
   onUpdateCauList?: (updatedCau: CauItem[]) => void;
   className?: string;
   defaultTab?: 'matrix' | 'spec' | 'cau' | 'audit';
@@ -27,6 +28,7 @@ export const InteractiveMatrixDashboard: React.FC<InteractiveMatrixDashboardProp
   activeCompetencies,
   grade,
   subject,
+  examOrigin,
   onUpdateCauList,
   className = '',
   defaultTab = 'matrix',
@@ -45,7 +47,7 @@ export const InteractiveMatrixDashboard: React.FC<InteractiveMatrixDashboardProp
   const safeChuDeList = Array.isArray(chuDeList) ? chuDeList : [];
   const safeCauList = Array.isArray(cauList) ? cauList : [];
 
-  const auditReport = runCv7991Audit(safeChuDeList, safeCauList, luat, { grade, subject });
+  const auditReport = runCv7991Audit(safeChuDeList, safeCauList, luat, { grade, subject, examOrigin });
 
   const handleUpdateCauItem = (index: number, field: keyof CauItem, value: any) => {
     if (!onUpdateCauList) return;

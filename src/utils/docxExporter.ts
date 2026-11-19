@@ -1493,60 +1493,6 @@ export function buildStandardExamDocx(
   return doc;
 }
 
-/**
- * Balance MCQ Answer Choices (A, B, C, D) equally across single MCQ questions
- */
-export function balanceMcqAnswerKeys(questions: QuestionItem[]): QuestionItem[] {
-  const cloned = JSON.parse(JSON.stringify(questions)) as QuestionItem[];
-  const mcqs = cloned.filter((q) => q.part === 'part1' || q.type === 'mcq_single');
-  if (mcqs.length === 0) return cloned;
-
-  const targetPerLetter = Math.ceil(mcqs.length / 4);
-  const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
-  const targetLetters: ('A' | 'B' | 'C' | 'D')[] = ['A', 'B', 'C', 'D'];
-
-  mcqs.forEach((q) => {
-    if (!q.options || q.options.length !== 4) return;
-    const hasAllAbove = q.options.some((opt) => /cả A và B|tất cả|cả 3/i.test(opt));
-    if (hasAllAbove) return; // Skip questions with meta-options
-
-    let currAns = String(q.correctAnswer || 'A').toUpperCase().trim();
-    if (!['A', 'B', 'C', 'D'].includes(currAns)) currAns = 'A';
-
-    // Find letter with lowest current count
-    const sortedLetters = [...targetLetters].sort((a, b) => (counts[a] || 0) - (counts[b] || 0));
-    const newLetter = sortedLetters[0];
-
-    if (currAns !== newLetter) {
-      const currIdx = ['A', 'B', 'C', 'D'].indexOf(currAns);
-      const newIdx = ['A', 'B', 'C', 'D'].indexOf(newLetter);
-
-      if (currIdx !== -1 && newIdx !== -1) {
-        // Swap options
-        const tempOpt = q.options[currIdx];
-        q.options[currIdx] = q.options[newIdx];
-        q.options[newIdx] = tempOpt;
-
-        // Re-prefix option labels "A. ", "B. ", "C. ", "D. " if needed
-        q.options = q.options.map((opt, i) => {
-          const letter = ['A', 'B', 'C', 'D'][i];
-          const cleanText = opt.replace(/^[A-D][.:)]\s*/, '');
-          return `${letter}. ${cleanText}`;
-        });
-
-        q.correctAnswer = newLetter;
-        counts[newLetter] = (counts[newLetter] || 0) + 1;
-      } else {
-        counts[currAns] = (counts[currAns] || 0) + 1;
-      }
-    } else {
-      counts[currAns] = (counts[currAns] || 0) + 1;
-    }
-  });
-
-  return cloned;
-}
-
 const SPEC_GRAY_BORDER = { style: BorderStyle.SINGLE, size: 4, color: 'CCCCCC' };
 const SPEC_TABLE_BORDERS = {
   top: SPEC_GRAY_BORDER,
@@ -1562,16 +1508,12 @@ const SPEC_TABLE_BORDERS = {
  */
 export function buildStandardFormDocx(
   config: ExamConfig,
-  rawQuestions: QuestionItem[],
+  questions: QuestionItem[],
   options: DocxExportOptions = {}
 ): Document {
   const mode = options.mode || 'full';
   const examCode = options.examCode || '101';
   const pageSize = config.pageSize || 'A4';
-  const balanceAnswers = config.balanceAnswersOption ?? true;
-
-  // Process questions & balance answers if option is enabled
-  const questions = balanceAnswers ? balanceMcqAnswerKeys(rawQuestions) : rawQuestions;
 
   const department = (config.departmentName || 'PHÒNG GIÁO DỤC & ĐÀO TẠO TPHCM').trim();
   const school = (config.schoolName || 'TRƯỜNG THPT VÕ TRƯỜNG TOẢN').trim();

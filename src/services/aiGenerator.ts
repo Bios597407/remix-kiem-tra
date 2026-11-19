@@ -191,6 +191,16 @@ async function callGeminiAPI(
     referenceContext += `\n\n=== CHỈ DẪN / YÊU CẦU NỘI DUNG TỰ DO CỦA GIÁO VIÊN ===\n${config.teacherNotes}`;
   }
 
+  const teacherScope = [
+    ['Tên bài / Chủ đề', config.topicTitle],
+    ['Chương / Phạm vi', config.knowledgeScope || config.chapter],
+    ['Yêu cầu cần đạt', config.learningOutcomes],
+  ].filter(([, value]) => value?.trim());
+  if (teacherScope.length) {
+    referenceContext += '\n\n=== PHẠM VI VÀ YÊU CẦU CẦN ĐẠT DO GIÁO VIÊN NHẬP ===\n';
+    referenceContext += teacherScope.map(([label, value]) => `${label}: ${value?.trim()}`).join('\n');
+  }
+
   // Question Blueprint from cauList if provided
   let questionBlueprint = '';
   if (cauList && cauList.length > 0) {

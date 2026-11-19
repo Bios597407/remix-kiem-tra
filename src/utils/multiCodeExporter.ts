@@ -21,8 +21,7 @@ import {
   MasterComparisonMatrix,
 } from '../types/exam';
 import {
-  buildStandardExamDocx,
-  downloadStandardFormDocx,
+  buildStandardFormDocx,
   formatLatexToUnicode,
 } from './docxExporter';
 import { generateMasterComparisonMatrix } from './examShuffler';
@@ -311,7 +310,7 @@ export async function downloadAllExamCodesZip(
 
   // 1. Generate .docx for each exam code
   for (const variant of shuffledCodes) {
-    const doc = buildStandardExamDocx(config, variant.questions, {
+    const doc = buildStandardFormDocx(config, variant.questions, {
       mode: options.mode,
       examCode: variant.code,
     });

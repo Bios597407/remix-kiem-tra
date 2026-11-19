@@ -39,7 +39,7 @@ import { inferSubjectAndTextbook } from '../utils/subjectInference';
 
 interface ConfigPanelProps {
   config: ExamConfig;
-  onChangeConfig: (updated: ExamConfig) => void;
+  onChangeConfig: (updated: ExamConfig, resetMatrix?: boolean) => void;
   chuDeList: ChuDeItem[];
   onChangeChuDeList: (updated: ChuDeItem[]) => void;
   luat: LuatConfig;
@@ -450,8 +450,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         (msg) => setAnalysisProgress(msg)
       );
 
-      onChangeChuDeList(result.chuDeList);
-
       const topicLines = result.chuDeList.flatMap((cd) => cd.noiDung.map((nd) => nd.ten)).join('\n');
       const chapterLines = Array.from(new Set(result.chuDeList.map((cd) => cd.ten))).join('\n');
       
@@ -490,6 +488,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         learningOutcomes: structuredOutcomes || result.rawOutcomesStr,
         readingPassage: result.readingPassageStr,
       });
+      onChangeChuDeList(result.chuDeList);
 
       setShowLessonDetails(true);
 
@@ -1147,7 +1146,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   <textarea
                     rows={4}
                     value={config.topicTitle || ''}
-                    onChange={(e) => onChangeConfig({ ...config, topicTitle: e.target.value })}
+                    onChange={(e) => onChangeConfig({ ...config, topicTitle: e.target.value }, true)}
                     placeholder="Bài 1: Hàm số và Đồ thị&#10;Bài 2: Cực trị hàm số&#10;Bài 3: Tiệm cận..."
                     className="w-full rounded-xl border border-slate-300 p-2.5 font-medium text-slate-800 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none resize-y"
                   />
@@ -1168,7 +1167,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   <textarea
                     rows={3}
                     value={config.chapter || config.knowledgeScope || ''}
-                    onChange={(e) => onChangeConfig({ ...config, chapter: e.target.value, knowledgeScope: e.target.value })}
+                    onChange={(e) => onChangeConfig({ ...config, chapter: e.target.value, knowledgeScope: e.target.value }, true)}
                     placeholder="Chương I&#10;Chương I&#10;Chương I..."
                     className="w-full rounded-xl border border-slate-300 p-2.5 font-medium text-slate-800 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none resize-y"
                   />
@@ -1191,7 +1190,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 <textarea
                   rows={8.5}
                   value={config.learningOutcomes || ''}
-                  onChange={(e) => onChangeConfig({ ...config, learningOutcomes: e.target.value })}
+                  onChange={(e) => onChangeConfig({ ...config, learningOutcomes: e.target.value }, true)}
                   placeholder="VD: Nhận biết cực trị, tính được giới hạn, giải quyết bài toán tối ưu..."
                   className="w-full rounded-xl border border-slate-300 p-2.5 font-medium text-slate-800 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none resize-y min-h-[160px]"
                 />
@@ -1213,7 +1212,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 <textarea
                   rows={8.5}
                   value={config.readingPassage || ''}
-                  onChange={(e) => onChangeConfig({ ...config, readingPassage: e.target.value })}
+                  onChange={(e) => onChangeConfig({ ...config, readingPassage: e.target.value }, true)}
                   placeholder="Dán văn bản đoạn trích thơ, văn xuôi, đoạn thông tin khoa học hoặc dữ liệu thực tế..."
                   className="w-full rounded-xl border border-slate-300 p-2.5 font-medium text-slate-800 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none resize-y min-h-[160px]"
                 />
