@@ -1081,10 +1081,9 @@ function renderCv7991SpecWord(tableData: UnifiedTableData, config: ExamConfig): 
     </thead>
     <tbody>
       ${rows.map((r) => {
-        // Format YCCĐ string by cognitive levels exactly matching UI
-        const bietYccdList = r.yccdList.filter((y) => y.mucToiDa === 'Biet' || y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung');
-        const hieuYccdList = r.yccdList.filter((y) => y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung');
-        const vdYccdList = r.yccdList.filter((y) => y.mucToiDa === 'VanDung');
+        const bietYccdList = r.yccdByLevel.Biet;
+        const hieuYccdList = r.yccdByLevel.Hieu;
+        const vdYccdList = r.yccdByLevel.VanDung;
 
         const hasBietQ =
           r.matrixCells.NLC.Biet.count > 0 ||

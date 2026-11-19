@@ -136,23 +136,9 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
 
           <tbody>
             {matrixData.rows.map((r, rIdx) => {
-              const bietRowSum =
-                r.matrixCells.NLC.Biet.count +
-                r.matrixCells.DS.Biet.count +
-                r.matrixCells.TLN.Biet.count +
-                r.matrixCells.TL.Biet.count;
-
-              const hieuRowSum =
-                r.matrixCells.NLC.Hieu.count +
-                r.matrixCells.DS.Hieu.count +
-                r.matrixCells.TLN.Hieu.count +
-                r.matrixCells.TL.Hieu.count;
-
-              const vdRowSum =
-                r.matrixCells.NLC.VanDung.count +
-                r.matrixCells.DS.VanDung.count +
-                r.matrixCells.TLN.VanDung.count +
-                r.matrixCells.TL.VanDung.count;
+              const scoreAt = (level: 'Biet' | 'Hieu' | 'VanDung') =>
+                formatScore(r.matrixCells.NLC[level].score + r.matrixCells.DS[level].score
+                  + r.matrixCells.TLN[level].score + r.matrixCells.TL[level].score);
 
               return (
                 <tr key={rIdx} className="hover:bg-slate-50 transition">
@@ -194,9 +180,9 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
                   <td className="border border-black p-1">{r.matrixCells.TL.VanDung.displayStr}</td>
 
                   {/* ROW TOTALS GROUP */}
-                  <td className="border border-black p-1 font-bold bg-slate-50">{bietRowSum || ''}</td>
-                  <td className="border border-black p-1 font-bold bg-slate-50">{hieuRowSum || ''}</td>
-                  <td className="border border-black p-1 font-bold bg-slate-50">{vdRowSum || ''}</td>
+                  <td className="border border-black p-1 font-bold bg-slate-50">{scoreAt('Biet')}</td>
+                  <td className="border border-black p-1 font-bold bg-slate-50">{scoreAt('Hieu')}</td>
+                  <td className="border border-black p-1 font-bold bg-slate-50">{scoreAt('VanDung')}</td>
 
                   <td className="border border-black p-1 font-bold text-center">
                     {formatPercent(r.rowPercentScore)}
@@ -226,7 +212,7 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
               )}
 
               <td colSpan={3} className="border border-black p-1">
-                {matrixData.typeGrandTotals.TL.count > 0 ? `${matrixData.typeGrandTotals.TL.count} câu` : ''}
+                {matrixData.typeGrandTotals.TL.count > 0 ? `${matrixData.typeGrandTotals.TL.count} ${activeLuat.tlUnit === 'y' ? 'ý' : 'câu'}` : ''}
               </td>
 
               <td className="border border-black p-1 bg-slate-200">{matrixData.levelGrandTotals.Biet.count}</td>

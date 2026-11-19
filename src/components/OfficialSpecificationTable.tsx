@@ -131,9 +131,9 @@ export const OfficialSpecificationTable: React.FC<OfficialSpecificationTableProp
           <tbody>
             {matrixData.rows.map((r, rIdx) => {
               // Format YCCĐ string by cognitive levels
-              const bietYccdList = r.yccdList.filter((y) => y.mucToiDa === 'Biet' || y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung');
-              const hieuYccdList = r.yccdList.filter((y) => y.mucToiDa === 'Hieu' || y.mucToiDa === 'VanDung');
-              const vdYccdList = r.yccdList.filter((y) => y.mucToiDa === 'VanDung');
+              const bietYccdList = r.yccdByLevel.Biet;
+              const hieuYccdList = r.yccdByLevel.Hieu;
+              const vdYccdList = r.yccdByLevel.VanDung;
 
               // Check if cell has question counts at level
               const hasBietQ =
@@ -287,7 +287,7 @@ export const OfficialSpecificationTable: React.FC<OfficialSpecificationTableProp
               )}
 
               <td colSpan={3} className="border border-black p-1">
-                {matrixData.typeGrandTotals.TL.count > 0 ? `${matrixData.typeGrandTotals.TL.count} câu` : ''}
+                {matrixData.typeGrandTotals.TL.count > 0 ? `${matrixData.typeGrandTotals.TL.count} ${activeLuat.tlUnit === 'y' ? 'ý' : 'câu'}` : ''}
               </td>
             </tr>
 

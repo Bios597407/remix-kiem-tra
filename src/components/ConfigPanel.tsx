@@ -1030,7 +1030,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
 
                   <div className="p-1.5 bg-purple-50/90 rounded-lg border border-purple-200/70">
                     <p className="text-[10px] text-purple-700 font-bold truncate">Tự luận</p>
-                    <p className="text-xs font-black text-purple-900">{luat.tlCount}c ({calcTlScore}đ)</p>
+                    <p className="text-xs font-black text-purple-900">{luat.tlCount} {luat.tlUnit === 'y' ? 'ý' : 'câu'} ({calcTlScore}đ)</p>
                   </div>
                 </div>
               </div>
@@ -1188,12 +1188,17 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   )}
                 </div>
                 <textarea
+                  aria-label="Yêu cầu cần đạt / Mục tiêu đánh giá"
+                  aria-describedby="manual-yccd-format"
                   rows={8.5}
                   value={config.learningOutcomes || ''}
                   onChange={(e) => onChangeConfig({ ...config, learningOutcomes: e.target.value }, true)}
-                  placeholder="VD: Nhận biết cực trị, tính được giới hạn, giải quyết bài toán tối ưu..."
+                  placeholder={'[Tên bài]\nBiết:\n- Nêu đặc điểm (I.1).\nHiểu:\n- Giải thích công dụng (II.1a).'}
                   className="w-full rounded-xl border border-slate-300 p-2.5 font-medium text-slate-800 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none resize-y min-h-[160px]"
                 />
+                <p id="manual-yccd-format" className="text-[11px] text-slate-600">
+                  Ghi [Tên bài] rồi nhóm theo Biết, Hiểu, Vận dụng. Nếu đã chốt vị trí, ghi cuối mỗi dòng như (I.1) hoặc (II.1a).
+                </p>
               </div>
 
               {/* Column 3: Dán nội dung bài học hoặc ngữ liệu đọc hiểu */}

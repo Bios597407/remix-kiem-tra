@@ -139,7 +139,7 @@ async function callGeminiAPI(
   const p1 = cauList && cauList.length > 0 ? cauList.filter(c => c.dang === 'NLC').length : (luat?.nlcCount ?? config.sectionCounts.part1 ?? 12);
   const p2 = cauList && cauList.length > 0 ? new Set(cauList.filter(c => c.dang === 'DS').map(c => c.cauSo || 1)).size : (luat?.dsCount ?? config.sectionCounts.part2 ?? 4);
   const p3 = cauList && cauList.length > 0 ? cauList.filter(c => c.dang === 'TLN').length : (luat?.tlnCount ?? config.sectionCounts.part3 ?? 0);
-  const p4 = cauList && cauList.length > 0 ? (luat?.tlUnit === 'y' ? cauList.filter(c => c.dang === 'TL').length : new Set(cauList.filter(c => c.dang === 'TL').map(c => c.cauSo || 1)).size) : (luat?.tlCount ?? config.sectionCounts.part4 ?? 3);
+  const p4 = cauList && cauList.length > 0 ? new Set(cauList.filter(c => c.dang === 'TL').map(c => c.cauSo || 1)).size : (luat?.tlCount ?? config.sectionCounts.part4 ?? 3);
 
   const subject = config.customSubject || config.subject || 'Môn học';
   const cognitiveList =
@@ -243,7 +243,7 @@ ${tlnCau.map((c, i) => {
 ${tlCau.map((c, i) => {
   const nd = ndMap.get(c.noiDungId);
   const ndName = nd ? nd.ten : c.noiDungId;
-  return `   - Câu ${i + 1}: Mức ${c.muc}, Nội dung "${ndName}", YCCĐ: [${c.maYCCD?.join(', ')}], Điểm: ${c.diem}đ`;
+  return `   - Câu ${c.cauSo ?? i + 1}${c.y ? ` ý ${c.y}` : ''}: Mức ${c.muc}, Nội dung "${ndName}", YCCĐ: [${c.maYCCD?.join(', ')}], Điểm: ${c.diem}đ`;
 }).join('\n')}
 `;
   }
@@ -326,7 +326,7 @@ CẤU TRÚC SỐ LƯỢNG CÂU BẮT BUỘC (PHẢI KHỚP 100%):
 - Phần I (Trắc nghiệm nhiều lựa chọn): ${p1} câu.
 - Phần II (Trắc nghiệm Đúng/Sai 4 ý): ${p2} câu.
 - Phần III (Trả lời ngắn): ${p3} câu.
-- Phần IV (Tự luận): ${p4} câu.
+- Phần IV (Tự luận): ${p4} câu. Giữ các ý a/b/... trong cùng câu lớn theo bảng phân bổ; thể hiện từng ý trong đề và hướng dẫn chấm.
 
 YÊU CẦU ĐỊNH DẠNG JSON (Mảng các đối tượng QuestionItem):
 [
@@ -517,7 +517,7 @@ export function ensureExactQuestionCount(
   const p1 = cauList && cauList.length > 0 ? cauList.filter(c => c.dang === 'NLC').length : (luat?.nlcCount ?? config.sectionCounts.part1 ?? 12);
   const p2 = cauList && cauList.length > 0 ? new Set(cauList.filter(c => c.dang === 'DS').map(c => c.cauSo || 1)).size : (luat?.dsCount ?? config.sectionCounts.part2 ?? 4);
   const p3 = cauList && cauList.length > 0 ? cauList.filter(c => c.dang === 'TLN').length : (luat?.tlnCount ?? config.sectionCounts.part3 ?? 0);
-  const p4 = cauList && cauList.length > 0 ? (luat?.tlUnit === 'y' ? cauList.filter(c => c.dang === 'TL').length : new Set(cauList.filter(c => c.dang === 'TL').map(c => c.cauSo || 1)).size) : (luat?.tlCount ?? config.sectionCounts.part4 ?? 3);
+  const p4 = cauList && cauList.length > 0 ? new Set(cauList.filter(c => c.dang === 'TL').map(c => c.cauSo || 1)).size : (luat?.tlCount ?? config.sectionCounts.part4 ?? 3);
 
   const topic = config.topicTitle || config.customSubject || config.subject || 'Kiến thức trọng tâm';
 

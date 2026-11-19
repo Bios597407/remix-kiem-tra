@@ -25,6 +25,7 @@ import {
 
 import { generateExamQuestions } from './services/aiGenerator';
 import { generateCauAllocation } from './utils/cv7991Engine';
+import { buildManualAssessmentPlan } from './utils/manualAssessmentPlan';
 import { runCv7991Audit } from './utils/cv7991Audit';
 import { initializeAndClearModelCache } from './utils/geminiModels';
 import { downloadStandaloneSingleFileHtml } from './utils/singleFileBundle';
@@ -130,7 +131,16 @@ function updateExamInputs(previous: GradeTabState, next: GradeTabState): GradeTa
 
   const hadExam = previous.generatedQuestions.length > 0;
   const scopeChanged = previous.subject !== next.subject || previous.textbook !== next.textbook;
-  const clearMatrix = scopeChanged && previous.chuDeList === next.chuDeList;
+  const allocationsChanged = (before: LuatConfig, after: LuatConfig) =>
+    before.nlcCount !== after.nlcCount || before.nlcPrice !== after.nlcPrice
+    || before.dsCount !== after.dsCount || before.dsSubItems !== after.dsSubItems
+    || before.dsPricePerSub !== after.dsPricePerSub || before.tlnCount !== after.tlnCount
+    || before.tlnPrice !== after.tlnPrice || before.tlCount !== after.tlCount
+    || before.tlUnit !== after.tlUnit || before.tlPrice !== after.tlPrice
+    || before.bietTarget !== after.bietTarget || before.hieuTarget !== after.hieuTarget
+    || before.vanDungTarget !== after.vanDungTarget || before.tolerance !== after.tolerance;
+  const clearMatrix = (scopeChanged || (previous.manualPlan && allocationsChanged(previous.luat, next.luat)))
+    && previous.chuDeList === next.chuDeList;
   return {
     ...next,
     ...(clearMatrix ? { chuDeList: [], cauList: [], unsolvableReason: undefined } : {}),
@@ -320,6 +330,8 @@ export default function App() {
         uploadedDocs: docs,
         chuDeList: [],
         cauList: [],
+        manualPlan: false,
+
         unsolvableReason: undefined,
         subject: inferredMeta?.subject || targetTab.subject,
         textbook: inferredMeta?.textbook || targetTab.textbook,
@@ -369,7 +381,7 @@ export default function App() {
 
   // Auto-generate or update "cau" allocation when chuDeList or luat changes
   useEffect(() => {
-    if (currentTabState.chuDeList && currentTabState.chuDeList.length > 0) {
+    if (!currentTabState.manualPlan && currentTabState.chuDeList.length > 0) {
       const alloc = generateCauAllocation(currentTabState.chuDeList, currentTabState.luat || DEFAULT_LUAT);
       updateCurrentTabState((prev) => ({
         ...prev,
@@ -377,7 +389,7 @@ export default function App() {
         unsolvableReason: alloc.unsolvableReason,
       }));
     }
-  }, [currentTabState.chuDeList, currentTabState.luat]);
+  }, [currentTabState.chuDeList, currentTabState.luat, currentTabState.manualPlan, activeGrade]);
 
   // Audit Report for current active tab
   const auditReport = useMemo(() => {
@@ -425,6 +437,8 @@ export default function App() {
         unsolvableReason: undefined,
         examRevision: prev[activeGrade].examRevision + 1,
         examOrigin: undefined,
+        manualPlan: false,
+
         examNeedsRegeneration: false,
       },
     }));
@@ -442,9 +456,59 @@ export default function App() {
     toast.success('🎉 Đã nạp thành công Bộ đề mẫu chuẩn CV 7991 (gồm 4 mã đề 101, 102, 103, 104 & Bảng đối chiếu)!');
   };
 
+  const planErrors = auditReport.checks.filter((check) =>
+    !check.passed && check.id !== 'K12' && (check.type === 'ERROR' || check.id === 'K5'));
+  const canApprovePlan = currentTabState.cauList.length > 0 && planErrors.length === 0;
+  const matrixApproved = currentTabState.approvedMatrixRevision === currentTabState.examRevision;
+  const specApproved = currentTabState.approvedSpecRevision === currentTabState.examRevision;
+
+  const handleBuildMatrix = () => {
+    setWorkspaceTab('matrix');
+    if (currentTabState.chuDeList.length && !currentTabState.manualPlan) return;
+    try {
+      const luat = currentTabState.luat;
+      const plan = buildManualAssessmentPlan(config, luat);
+      const allocation = plan.positions ? { cauList: plan.positions, unsolvableReason: undefined }
+        : generateCauAllocation(plan.topics, luat);
+      if (!allocation.cauList.length) throw new Error(allocation.unsolvableReason || 'Chưa phân bổ được câu hỏi.');
+      updateCurrentTabState((prev) => ({
+        ...prev,
+        examRevision: prev.examRevision + 1,
+        examOrigin: undefined,
+        examNeedsRegeneration: prev.examNeedsRegeneration || prev.generatedQuestions.length > 0,
+        generatedQuestions: [],
+        shuffledCodes: [],
+        activeExamCode: '101',
+        chuDeList: plan.topics,
+        cauList: allocation.cauList,
+        unsolvableReason: allocation.unsolvableReason,
+        manualPlan: true,
+      }));
+      toast.success(plan.positions
+        ? 'Đã dựng ma trận theo vị trí câu/ý đã nhập.'
+        : 'Đã dựng ma trận dự thảo với trọng số bằng nhau. Kiểm tra phân bổ trước khi duyệt.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Chưa dựng được ma trận.');
+    }
+  };
+
+  const approveMatrix = () => {
+    if (!canApprovePlan) return;
+    updateCurrentTabState((tab) => ({ ...tab, approvedMatrixRevision: tab.examRevision }));
+  };
+
+  const approveSpec = () => {
+    if (!matrixApproved || !canApprovePlan) return;
+    updateCurrentTabState((tab) => ({ ...tab, approvedSpecRevision: tab.examRevision }));
+  };
+
   // Generate Questions with Gemini AI
   const handleGenerateQuestions = async () => {
     if (isGenerating) return;
+    if (!matrixApproved || !specApproved || !canApprovePlan) {
+      toast.error('Duyệt ma trận A và đặc tả B theo cấu hình hiện tại trước khi tạo đề.');
+      return;
+    }
 
     const revision = currentTabState.examRevision;
     setIsGenerating(true);
@@ -573,6 +637,8 @@ export default function App() {
                 updateCurrentTabState((prev) => ({
                   ...prev,
                   chuDeList: newChuDe,
+                  manualPlan: false,
+
                 }));
               }}
               luat={currentTabState.luat}
@@ -601,7 +667,7 @@ export default function App() {
               onAddTab={handleAddTab}
               onRemoveTab={handleRemoveTab}
               onGenerate={handleGenerateQuestions}
-              onBuildMatrixOnly={() => setWorkspaceTab('matrix')}
+              onBuildMatrixOnly={handleBuildMatrix}
               isGenerating={isGenerating}
               apiKey={apiKey}
               onClearOldContent={handleClearAllContent}
@@ -659,7 +725,14 @@ export default function App() {
                   appUiScale: updated.appUiScale !== undefined ? updated.appUiScale : prev.appUiScale,
                 }));
               }}
-              auditPassed={auditReport.passed}
+              planReview={{
+                matrixApproved,
+                specApproved,
+                canApprove: canApprovePlan,
+                errors: planErrors.map((check) => check.id),
+                approveMatrix,
+                approveSpec,
+              }}
               shuffledCodes={currentTabState.shuffledCodes || []}
               onUpdateShuffledCodes={(codes) => {
                 updateCurrentTabState((prev) => ({

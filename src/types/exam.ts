@@ -290,6 +290,9 @@ export interface ExamOrigin {
 }
 
 export interface GradeTabState {
+  manualPlan?: boolean;
+  approvedMatrixRevision?: number;
+  approvedSpecRevision?: number;
   examRevision: number;
   examOrigin?: ExamOrigin;
   examNeedsRegeneration?: boolean;
