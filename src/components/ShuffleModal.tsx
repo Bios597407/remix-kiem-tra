@@ -36,6 +36,7 @@ export const ShuffleModal: React.FC<ShuffleModalProps> = ({
 
   const [shuffleP1Q, setShuffleP1Q] = useState<boolean>(true);
   const [shuffleP1Opt, setShuffleP1Opt] = useState<boolean>(true);
+  const [balanceAnswers, setBalanceAnswers] = useState(false);
   const [shuffleP2Q, setShuffleP2Q] = useState<boolean>(true);
   const [shuffleP2Sub, setShuffleP2Sub] = useState<boolean>(false);
   const [shuffleP3Q, setShuffleP3Q] = useState<boolean>(true);
@@ -64,6 +65,7 @@ export const ShuffleModal: React.FC<ShuffleModalProps> = ({
       customCodeList: parsedCustomList.length > 0 ? parsedCustomList : undefined,
       shufflePart1Questions: shuffleP1Q,
       shufflePart1Options: shuffleP1Opt,
+      balancePart1Answers: balanceAnswers,
       shufflePart2Questions: shuffleP2Q,
       shufflePart2SubItems: shuffleP2Sub,
       shufflePart3Questions: shuffleP3Q,
@@ -264,6 +266,19 @@ export const ShuffleModal: React.FC<ShuffleModalProps> = ({
                 <div>
                   <span className="font-bold text-slate-800">Đảo 4 phương án A, B, C, D (Phần I)</span>
                   <p className="text-[11px] text-slate-500">Hoán vị vị trí các đáp án và tự động cập nhật key</p>
+                </div>
+              </label>
+
+              <label className="flex items-start space-x-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={balanceAnswers}
+                  onChange={(e) => setBalanceAnswers(e.target.checked)}
+                  className="mt-0.5 rounded text-blue-600 focus:ring-blue-500"
+                />
+                <div>
+                  <span className="font-bold text-slate-800">Cân bằng vị trí đáp án đúng (A, B, C, D)</span>
+                  <p className="text-[11px] text-slate-500">Áp dụng cho các mã khi trộn và dùng chung cho mọi bản xuất.</p>
                 </div>
               </label>
 

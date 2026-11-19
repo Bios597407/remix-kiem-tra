@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Sliders, Grid, FileDown, Sparkles } from 'lucide-react';
 import Header from './components/Header';
 import ConfigPanel from './components/ConfigPanel';
@@ -112,11 +112,36 @@ const createDefaultTabState = (grade: string): GradeTabState => {
     nangLucList: [],
     cauList: isDefaultDemo ? SAMPLE_CAU_LIST : [],
     uploadedDocs: [],
+    examRevision: 0,
+    examOrigin: isDefaultDemo ? { grade, subject: 'Toán học' } : undefined,
     generatedQuestions: initialQuestions,
     shuffledCodes: initialCodes,
     activeExamCode: '101',
   };
 };
+
+function updateExamInputs(previous: GradeTabState, next: GradeTabState): GradeTabState {
+  const keys = (tab: GradeTabState) => [
+    tab.grade, tab.subject, tab.textbook, tab.durationMinutes, tab.topicTitle, tab.chapter,
+    tab.knowledgeScope, tab.learningOutcomes, tab.readingPassage, tab.uploadedDocs,
+    tab.chuDeList, tab.nangLucList, tab.luat,
+  ];
+  if (JSON.stringify(keys(previous)) === JSON.stringify(keys(next))) return next;
+
+  const hadExam = previous.generatedQuestions.length > 0;
+  const scopeChanged = previous.subject !== next.subject || previous.textbook !== next.textbook;
+  const clearMatrix = scopeChanged && previous.chuDeList === next.chuDeList;
+  return {
+    ...next,
+    ...(clearMatrix ? { chuDeList: [], cauList: [], unsolvableReason: undefined } : {}),
+    examRevision: previous.examRevision + 1,
+    examOrigin: undefined,
+    examNeedsRegeneration: previous.examNeedsRegeneration || hadExam,
+    generatedQuestions: [],
+    shuffledCodes: [],
+    activeExamCode: '101',
+  };
+}
 
 export default function App() {
   // Global Model Cache Cleaning
@@ -130,9 +155,15 @@ export default function App() {
   const [activeTabs, setActiveTabs] = useState<string[]>(['12']);
 
   // Grade Tab States Map
-  const [tabStates, setTabStates] = useState<Record<string, GradeTabState>>({
+  const [tabStates, setTabStates] = useState<Record<string, GradeTabState>>(() => ({
     '12': createDefaultTabState('12'),
-  });
+  }));
+  const latestTabs = useRef(tabStates);
+  const latestGrade = useRef(activeGrade);
+  useLayoutEffect(() => {
+    latestTabs.current = tabStates;
+    latestGrade.current = activeGrade;
+  }, [tabStates, activeGrade]);
 
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem(STORAGE_KEY_API_KEY) || (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
@@ -233,10 +264,10 @@ export default function App() {
 
   // Update current tab state
   const updateCurrentTabState = (updater: (prev: GradeTabState) => GradeTabState) => {
-    setTabStates((prev) => ({
-      ...prev,
-      [activeGrade]: updater(prev[activeGrade] || createDefaultTabState(activeGrade)),
-    }));
+    setTabStates((prev) => {
+      const tab = prev[activeGrade] || createDefaultTabState(activeGrade);
+      return { ...prev, [activeGrade]: updateExamInputs(tab, updater(tab)) };
+    });
   };
 
   // Tính số lượng tài liệu đã nạp theo từng khối lớp để hiển thị trực tiếp lên Tab
@@ -272,25 +303,29 @@ export default function App() {
       // Nếu tự động chuyển sang khối lớp khác thì gỡ tài liệu khỏi khối lớp cũ để tránh lưu nhầm chỗ
       if (isDifferentGrade && next[activeGrade]) {
         const docIds = new Set(docs.map((d) => d.id));
-        next[activeGrade] = {
-          ...next[activeGrade],
-          uploadedDocs: (next[activeGrade].uploadedDocs || []).filter((d) => !docIds.has(d.id)),
-        };
+        const sourceTab = next[activeGrade];
+        next[activeGrade] = updateExamInputs(sourceTab, {
+          ...sourceTab,
+          uploadedDocs: sourceTab.uploadedDocs.filter((d) => !docIds.has(d.id)),
+        });
       }
 
       const targetTab = next[finalGrade] || createDefaultTabState(finalGrade);
       const fileTitles = docs.map((d) => d.name.replace(/\.[^/.]+$/, '')).join('\n');
       const fullText = docs.map((d) => d.content).join('\n\n');
 
-      next[finalGrade] = {
+      next[finalGrade] = updateExamInputs(targetTab, {
         ...targetTab,
         grade: finalGrade,
         uploadedDocs: docs,
+        chuDeList: [],
+        cauList: [],
+        unsolvableReason: undefined,
         subject: inferredMeta?.subject || targetTab.subject,
         textbook: inferredMeta?.textbook || targetTab.textbook,
         topicTitle: targetTab.topicTitle ? `${targetTab.topicTitle}\n${fileTitles}`.trim() : fileTitles,
         readingPassage: fullText || targetTab.readingPassage || '',
-      };
+      });
 
       return next;
     });
@@ -321,6 +356,9 @@ export default function App() {
     updateCurrentTabState((prev) => ({
       ...prev,
       uploadedDocs: [...(prev.uploadedDocs || []), ...sourceDocs],
+      chuDeList: [],
+      cauList: [],
+      unsolvableReason: undefined,
       readingPassage: prev.readingPassage
         ? `${prev.readingPassage}\n\n${sourceDocs.map((d) => d.content).join('\n\n')}`
         : sourceDocs.map((d) => d.content).join('\n\n'),
@@ -350,9 +388,10 @@ export default function App() {
       {
         grade: activeGrade || '',
         subject: currentTabState?.subject || '',
+        examOrigin: currentTabState.examOrigin ?? null,
       }
     );
-  }, [currentTabState?.chuDeList, currentTabState?.cauList, currentTabState?.luat, activeGrade, currentTabState?.subject]);
+  }, [currentTabState?.chuDeList, currentTabState?.cauList, currentTabState?.luat, activeGrade, currentTabState?.subject, currentTabState.examOrigin]);
 
   // Generation progress state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -373,34 +412,31 @@ export default function App() {
   // Clear all files & old exams (1 Click Reset)
   const handleClearAllContent = () => {
     releaseCachedFile();
-    updateCurrentTabState((prev) => ({
+    setTabStates((prev) => ({
       ...prev,
-      chuDeList: [],
-      cauList: [],
-      uploadedDocs: [],
-      generatedQuestions: [],
-      shuffledCodes: [],
-      activeExamCode: '101',
-      unsolvableReason: undefined,
+      [activeGrade]: {
+        ...prev[activeGrade],
+        chuDeList: [],
+        cauList: [],
+        uploadedDocs: [],
+        generatedQuestions: [],
+        shuffledCodes: [],
+        activeExamCode: '101',
+        unsolvableReason: undefined,
+        examRevision: prev[activeGrade].examRevision + 1,
+        examOrigin: undefined,
+        examNeedsRegeneration: false,
+      },
     }));
     toast.success('✨ Đã xóa sạch toàn bộ tài liệu, ma trận và kết quả kiểm tra cũ!');
   };
 
   // Load Sample Exam (Grade 12 CV 7991 with 4 pre-shuffled codes)
   const handleLoadSampleExam = () => {
-    const autoCodes = generateShuffledCodes(
-      SAMPLE_QUESTIONS_CV7991,
-      { variantCount: 4, namingPreset: '101' },
-      activeGrade
-    );
-
-    updateCurrentTabState((prev) => ({
+    if (activeGrade !== '12' || currentTabState.subject !== 'Toán học') return;
+    setTabStates((prev) => ({
       ...prev,
-      chuDeList: SAMPLE_CHUDE_LIST,
-      cauList: SAMPLE_CAU_LIST,
-      generatedQuestions: SAMPLE_QUESTIONS_CV7991,
-      shuffledCodes: autoCodes,
-      activeExamCode: '101',
+      '12': { ...createDefaultTabState('12'), examRevision: prev['12'].examRevision + 1 },
     }));
     setWorkspaceTab('exam');
     toast.success('🎉 Đã nạp thành công Bộ đề mẫu chuẩn CV 7991 (gồm 4 mã đề 101, 102, 103, 104 & Bảng đối chiếu)!');
@@ -410,6 +446,7 @@ export default function App() {
   const handleGenerateQuestions = async () => {
     if (isGenerating) return;
 
+    const revision = currentTabState.examRevision;
     setIsGenerating(true);
     setProgressStep(1);
     setProgressMsg('Đang khởi tạo tiến trình sinh đề thi AI...');
@@ -434,14 +471,27 @@ export default function App() {
         activeGrade
       );
 
-      updateCurrentTabState((prev) => ({
-        ...prev,
-        generatedQuestions: generated,
-        shuffledCodes: autoCodes,
-        activeExamCode: '101',
-      }));
+      if (latestTabs.current[activeGrade]?.examRevision !== revision) {
+        toast.info('Cấu hình đã thay đổi trong lúc tạo đề. Hãy tạo lại đề theo cấu hình mới.');
+        return;
+      }
+      setTabStates((prev) => {
+        const tab = prev[activeGrade];
+        if (!tab || tab.examRevision !== revision) return prev;
+        return {
+          ...prev,
+          [activeGrade]: {
+            ...tab,
+            examOrigin: { grade: config.grade, subject: config.subject },
+            examNeedsRegeneration: false,
+            generatedQuestions: generated,
+            shuffledCodes: autoCodes,
+            activeExamCode: '101',
+          },
+        };
+      });
 
-      setWorkspaceTab('exam');
+      if (latestGrade.current === activeGrade) setWorkspaceTab('exam');
       toast.success(`🎉 Đã sinh thành công ${generated.length} câu hỏi và tự động tạo 4 mã đề (101, 102, 103, 104) chuẩn CV 7991!`);
     } catch (err: any) {
       console.error('Generate error:', err);
@@ -451,6 +501,20 @@ export default function App() {
       setProgressStep(0);
       setProgressMsg('');
     }
+  };
+
+  const releaseBlocked = currentTabState.generatedQuestions.length === 0
+    || currentTabState.examOrigin?.grade !== config.grade
+    || currentTabState.examOrigin?.subject !== config.subject;
+  const releaseMessage = currentTabState.examNeedsRegeneration
+    ? 'Cấu hình đã thay đổi. Hãy tạo lại đề trước khi xuất.'
+    : 'Chưa có câu hỏi. Hãy tạo đề trước khi xuất.';
+  const openStandardExporter = () => {
+    if (releaseBlocked) {
+      toast.error(releaseMessage);
+      return;
+    }
+    setShowStandardExporterModal(true);
   };
 
   return (
@@ -464,7 +528,7 @@ export default function App() {
           onOpenHistory={() => setShowHistoryModal(true)}
           onResetDefaults={handleClearAllContent}
           onDownloadStandalone={() => downloadStandaloneSingleFileHtml()}
-          onOpenStandardExporter={() => setShowStandardExporterModal(true)}
+          onOpenStandardExporter={openStandardExporter}
           onClearOldContent={handleClearAllContent}
           savedBankCount={0}
           historyCount={0}
@@ -482,7 +546,7 @@ export default function App() {
           <section id="config-section" className="w-full">
             <ConfigPanel
               config={config}
-              onChangeConfig={(newCfg) => {
+              onChangeConfig={(newCfg, resetMatrix) => {
                 if (newCfg.gradeLevel && newCfg.gradeLevel !== gradeLevel) {
                   setGradeLevel(newCfg.gradeLevel);
                 }
@@ -501,6 +565,7 @@ export default function App() {
                   learningOutcomes: newCfg.learningOutcomes !== undefined ? newCfg.learningOutcomes : prev.learningOutcomes,
                   readingPassage: newCfg.readingPassage !== undefined ? newCfg.readingPassage : prev.readingPassage,
                   uploadedDocs: newCfg.uploadedDocs !== undefined ? newCfg.uploadedDocs : prev.uploadedDocs,
+                  ...(resetMatrix ? { chuDeList: [], cauList: [], unsolvableReason: undefined } : {}),
                 }));
               }}
               chuDeList={currentTabState.chuDeList}
@@ -552,6 +617,8 @@ export default function App() {
           <section id="workspace-section" className="w-full">
             <Workspace
               config={config}
+              releaseMessage={releaseBlocked ? releaseMessage : undefined}
+              examOrigin={currentTabState.examOrigin}
               chuDeList={currentTabState.chuDeList || []}
               cauList={currentTabState.cauList || []}
               luat={currentTabState.luat || DEFAULT_LUAT}
@@ -563,9 +630,19 @@ export default function App() {
                 updateCurrentTabState((prev) => ({
                   ...prev,
                   cauList: updated,
+                  examRevision: prev.examRevision + 1,
+                  examOrigin: undefined,
+                  examNeedsRegeneration: prev.examNeedsRegeneration || prev.generatedQuestions.length > 0,
+                  generatedQuestions: [],
+                  shuffledCodes: [],
+                  activeExamCode: '101',
                 }));
               }}
               onPrint={(type, examCode) => {
+                if (releaseBlocked && type !== 'matrix' && type !== 'spec') {
+                  toast.error(releaseMessage);
+                  return;
+                }
                 setPrintDocType(type);
                 if (examCode) {
                   updateCurrentTabState((prev) => ({
@@ -575,7 +652,7 @@ export default function App() {
                 }
                 setShowPrintModal(true);
               }}
-              onOpenStandardExporter={() => setShowStandardExporterModal(true)}
+              onOpenStandardExporter={openStandardExporter}
               onConfigChange={(updated) => {
                 updateCurrentTabState((prev) => ({
                   ...prev,
@@ -597,7 +674,8 @@ export default function App() {
                   activeExamCode: code,
                 }));
               }}
-              onLoadSampleExam={handleLoadSampleExam}
+              onLoadSampleExam={activeGrade === '12' && config.subject === 'Toán học'
+                ? handleLoadSampleExam : undefined}
             />
           </section>
         </main>
@@ -617,7 +695,7 @@ export default function App() {
         {/* Print Modal */}
         {showPrintModal && (
           <PrintPreviewModal
-            isOpen={showPrintModal}
+            isOpen={showPrintModal && (!releaseBlocked || printDocType === 'matrix' || printDocType === 'spec')}
             onClose={() => setShowPrintModal(false)}
             docType={printDocType}
             config={config}
@@ -630,12 +708,13 @@ export default function App() {
             cauList={currentTabState.cauList}
             luat={currentTabState.luat}
             examCode={currentTabState.activeExamCode || '101'}
+            releaseMessage={releaseBlocked ? releaseMessage : undefined}
           />
         )}
 
         {/* Standard Exporter Modal */}
-        <StandardExamExporterModal
-          isOpen={showStandardExporterModal}
+        {showStandardExporterModal && !releaseBlocked && <StandardExamExporterModal
+          isOpen
           onClose={() => setShowStandardExporterModal(false)}
           config={config}
           questions={currentTabState.generatedQuestions}
@@ -645,11 +724,10 @@ export default function App() {
             updateCurrentTabState((prev) => ({
               ...prev,
               pageSize: updated.pageSize,
-              balanceAnswersOption: updated.balanceAnswersOption,
               appUiScale: updated.appUiScale !== undefined ? updated.appUiScale : prev.appUiScale,
             }));
           }}
-        />
+        />}
 
         {/* Mobile Fixed Bottom Dock for 1-Tap Touch Navigation */}
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 text-white backdrop-blur-md border-t border-slate-800 px-3 py-2 flex justify-around items-center md:hidden shadow-2xl no-print">
@@ -676,7 +754,7 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => setShowStandardExporterModal(true)}
+            onClick={openStandardExporter}
             className="flex flex-col items-center gap-1 text-[10px] font-bold text-amber-300 hover:text-amber-200 transition active:scale-95 bg-gradient-to-r from-amber-500/20 to-orange-500/20 px-3 py-1 rounded-xl border border-amber-500/40"
           >
             <FileDown className="w-5 h-5 text-amber-400 animate-pulse" />

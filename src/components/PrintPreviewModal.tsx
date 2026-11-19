@@ -55,6 +55,7 @@ interface PrintPreviewModalProps {
   cauList?: CauItem[];
   luat?: LuatConfig;
   examCode?: string;
+  releaseMessage?: string;
 }
 
 export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
@@ -67,6 +68,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   cauList = [],
   luat,
   examCode = '101',
+  releaseMessage,
 }) => {
   const toast = useToast();
   const [activeDocType, setActiveDocType] = useState<PrintDocType>(docType);
@@ -132,9 +134,12 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
             ].map((item) => {
               const Icon = item.icon;
               const isActive = activeDocType === item.id;
+              const unavailable = !!releaseMessage && item.id !== 'matrix' && item.id !== 'spec';
               return (
                 <button
                   key={item.id}
+                  disabled={unavailable}
+                  title={unavailable ? releaseMessage : undefined}
                   onClick={() => setActiveDocType(item.id as PrintDocType)}
                   className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
                     isActive
@@ -151,7 +156,8 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
 
           <button
             type="button"
-            onClick={() => downloadStandardFormDocx(config, questions, { mode: 'full', examCode: '101' })}
+            disabled={!!releaseMessage}
+            onClick={() => downloadStandardFormDocx(config, questions, { mode: 'full', examCode })}
             className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
             title="Tải ngay file Word (.docx) theo đúng Form Trình Bày Chuẩn 100%"
           >
@@ -200,6 +206,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                                 <div className="grid grid-cols-2 gap-2 pl-4 text-xs font-mono">
                                   {q.options.map((opt, oIdx) => (
                                     <div key={oIdx} className="p-1 rounded bg-slate-50 border border-slate-200">
+                                      <span className="mr-1">{String.fromCharCode(65 + oIdx)}.</span>
                                       <MathRenderer text={opt} />
                                     </div>
                                   ))}

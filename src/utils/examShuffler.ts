@@ -20,6 +20,30 @@ export const DEFAULT_SHUFFLE_OPTIONS: ShuffleOptions = {
   preserveAnchoredOptions: true,
 };
 
+const ANSWER_LETTERS = ['A', 'B', 'C', 'D'];
+const ANCHORED_OPTION = /(tất cả|cả [a-d]|không có|đáp án khác|cả hai|hai ý trên|các đáp án trên)/i;
+
+function balanceMcqAnswerKeys(questions: QuestionItem[], preserveAnchored: boolean): QuestionItem[] {
+  const counts = [0, 0, 0, 0];
+  return questions.map((question) => {
+    if ((question.part !== 'part1' && question.type !== 'mcq_single') || question.options?.length !== 4) {
+      return question;
+    }
+    const original = ANSWER_LETTERS.indexOf(String(question.correctAnswer).trim().toUpperCase());
+    if (original < 0) return question;
+    if (preserveAnchored && question.options.some((option) => ANCHORED_OPTION.test(option))) {
+      counts[original]++;
+      return question;
+    }
+    const target = counts.indexOf(Math.min(...counts));
+    counts[target]++;
+    if (target === original) return question;
+    const options = [...question.options];
+    [options[original], options[target]] = [options[target], options[original]];
+    return { ...question, options, correctAnswer: ANSWER_LETTERS[target] };
+  });
+}
+
 /**
  * Generate code names based on chosen naming preset and grade
  */
@@ -82,42 +106,35 @@ export function generateShuffledCodes(
   const opts: ShuffleOptions = { ...DEFAULT_SHUFFLE_OPTIONS, ...options };
   const codes = generateVariantCodeList(opts.variantCount, opts.namingPreset, grade, opts.customCodeList);
 
+  if (new Set(codes.map((code) => code.toLowerCase())).size !== codes.length) {
+    throw new Error('Mỗi mã đề phải có tên duy nhất.');
+  }
+
+  const normalizedQuestions = baseQuestions.map((question) => {
+    if ((question.part !== 'part1' && question.type !== 'mcq_single') || !question.options) return question;
+    return {
+      ...question,
+      options: question.options.map((option) => option.replace(/^(?:[A-D][.:)]\s*)+/u, '')),
+    };
+  });
+  const base = opts.balancePart1Answers
+    ? balanceMcqAnswerKeys(normalizedQuestions, opts.preserveAnchoredOptions)
+    : normalizedQuestions;
+
   return codes.map((code, codeIdx) => {
-    if (codeIdx === 0) {
-      // Code 0: The Base Exam (Master code 101)
-      const baseQuickAnswers = generateQuickAnswers(baseQuestions);
-      const baseMapping: ExamCodeMappingItem[] = baseQuestions.map((q, idx) => ({
-        newIndex: idx + 1,
-        baseIndex: idx + 1,
-        questionId: q.id || `q_${idx}`,
-        part: q.part,
-        newCorrectAnswer: formatAnswerToString(q),
-        baseCorrectAnswer: formatAnswerToString(q),
-      }));
-
-      return {
-        code,
-        title: `Mã ${code} (Gốc)`,
-        isBase: true,
-        questions: baseQuestions,
-        quickAnswers: baseQuickAnswers,
-        mappingFromBase: baseMapping,
-      };
-    }
-
-    // Seeded deterministic shuffle
-    const seed = (codeIdx + 1) * 7919;
-    const shuffledQuestions = shuffleQuestionsSafely(baseQuestions, seed, opts);
-    const quickAnswers = generateQuickAnswers(shuffledQuestions, baseQuestions);
-    const mappingFromBase = buildMappingFromBase(baseQuestions, shuffledQuestions);
+    const isBase = codeIdx === 0;
+    const shuffled = isBase ? base : shuffleQuestionsSafely(base, (codeIdx + 1) * 7919, opts);
+    const questions = !isBase && opts.balancePart1Answers
+      ? balanceMcqAnswerKeys(shuffled, opts.preserveAnchoredOptions)
+      : shuffled;
 
     return {
       code,
-      title: `Mã ${code}`,
-      isBase: false,
-      questions: shuffledQuestions,
-      quickAnswers,
-      mappingFromBase,
+      title: isBase ? `Mã ${code} (Gốc)` : `Mã ${code}`,
+      isBase,
+      questions,
+      quickAnswers: generateQuickAnswers(questions, base),
+      mappingFromBase: buildMappingFromBase(base, questions),
     };
   });
 }
@@ -159,23 +176,18 @@ function shuffleQuestionsSafely(
       // Check if options contain relative references
       if (opts.preserveAnchoredOptions) {
         const hasRelativeOption = q.options.some((opt) =>
-          /(tất cả|cả [a-d]|không có|đáp án khác|cả hai|hai ý trên|các đáp án trên)/i.test(opt)
+          ANCHORED_OPTION.test(opt)
         );
         if (hasRelativeOption) return q;
       }
 
       // Identify original correct option index (0: A, 1: B, 2: C, 3: D)
-      const originalAnswerLetter = typeof q.correctAnswer === 'string' ? q.correctAnswer.trim().toUpperCase() : 'A';
-      const originalAnswerIdx = ['A', 'B', 'C', 'D'].indexOf(originalAnswerLetter);
-      const correctContent = originalAnswerIdx >= 0 ? q.options[originalAnswerIdx] : q.options[0];
+      const originalAnswerIdx = ANSWER_LETTERS.indexOf(String(q.correctAnswer).trim().toUpperCase());
+      if (originalAnswerIdx < 0) return q;
 
-      // Seeded permutation
-      const optionIndices = [0, 1, 2, 3];
-      const permutedIndices = getPermutation(optionIndices, (seed * 11 + idx * 17) % 24);
-
+      const permutedIndices = getPermutation([0, 1, 2, 3], (seed * 11 + idx * 17) % 24);
       const newOptions = permutedIndices.map((i) => q.options![i]);
-      const newCorrectIdx = newOptions.indexOf(correctContent);
-      const newCorrectLetter = ['A', 'B', 'C', 'D'][newCorrectIdx >= 0 ? newCorrectIdx : 0];
+      const newCorrectLetter = ANSWER_LETTERS[permutedIndices.indexOf(originalAnswerIdx)];
 
       return {
         ...q,

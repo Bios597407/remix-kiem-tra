@@ -24,6 +24,7 @@ import {
 import {
   QuestionItem,
   ExamConfig,
+  ExamOrigin,
   ChuDeItem,
   CauItem,
   LuatConfig,
@@ -53,6 +54,8 @@ import { MasterComparisonMatrixView } from './MasterComparisonMatrixView';
 
 interface WorkspaceProps {
   config: ExamConfig;
+  examOrigin?: ExamOrigin;
+  releaseMessage?: string;
   chuDeList: ChuDeItem[];
   cauList: CauItem[];
   luat: LuatConfig;
@@ -61,7 +64,7 @@ interface WorkspaceProps {
   activeTab: 'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide' | 'comparison';
   onTabChange: (tab: 'exam' | 'answers' | 'rubric' | 'matrix' | 'spec' | 'study_guide' | 'comparison') => void;
   onUpdateCauList?: (updated: CauItem[]) => void;
-  onPrint: (type: 'exam' | 'answers' | 'matrix' | 'study_guide' | 'full', examCode?: string) => void;
+  onPrint: (type: 'exam' | 'answers' | 'matrix' | 'spec' | 'study_guide' | 'full', examCode?: string) => void;
   onOpenStandardExporter?: () => void;
   onConfigChange?: (updated: ExamConfig) => void;
   auditPassed: boolean;
@@ -74,6 +77,8 @@ interface WorkspaceProps {
 
 export const Workspace: React.FC<WorkspaceProps> = ({
   config,
+  examOrigin,
+  releaseMessage,
   chuDeList,
   cauList,
   luat,
@@ -86,7 +91,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onOpenStandardExporter,
   onConfigChange,
   auditPassed,
-  shuffledCodes: externalShuffledCodes,
+  shuffledCodes: displayCodes = [],
   onUpdateShuffledCodes,
   activeExamCode: externalActiveCode,
   onSelectExamCode,
@@ -100,10 +105,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   const [isExportingDocx, setIsExportingDocx] = useState(false);
   const [isExportingZip, setIsExportingZip] = useState(false);
 
-  // Local state for shuffled codes if not controlled from above
-  const [localShuffledCodes, setLocalShuffledCodes] = useState<ShuffledExamCode[]>([]);
-  const shuffledCodes = externalShuffledCodes && externalShuffledCodes.length > 0 ? externalShuffledCodes : localShuffledCodes;
-
   // Active code selection (or 'matrix_comparison' to show master comparison matrix)
   const [selectedSubTab, setSelectedSubTab] = useState<string>('101');
 
@@ -113,27 +114,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       setSelectedSubTab(externalActiveCode);
     }
   }, [externalActiveCode]);
-
-  // Guaranteed list of codes (automatically generates 4 codes 101-104 if questions exist)
-  const displayCodes = useMemo(() => {
-    if (shuffledCodes && shuffledCodes.length > 0) return shuffledCodes;
-    if (questions && questions.length > 0) {
-      return generateShuffledCodes(questions, { variantCount: 4, namingPreset: '101' }, config.grade);
-    }
-    return [];
-  }, [shuffledCodes, questions, config.grade]);
-
-  // When new questions arrive and no codes yet, initialize 4 standard codes
-  useEffect(() => {
-    if (questions && questions.length > 0 && shuffledCodes.length === 0) {
-      const initialCodes = generateShuffledCodes(questions, { variantCount: 4, namingPreset: '101' }, config.grade);
-      if (onUpdateShuffledCodes) {
-        onUpdateShuffledCodes(initialCodes);
-      } else {
-        setLocalShuffledCodes(initialCodes);
-      }
-    }
-  }, [questions]);
 
   // Active variant questions
   const activeVariant = useMemo(() => {
@@ -156,11 +136,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
     try {
       const generated = generateShuffledCodes(questions, options, config.grade);
-      if (onUpdateShuffledCodes) {
-        onUpdateShuffledCodes(generated);
-      } else {
-        setLocalShuffledCodes(generated);
-      }
+      onUpdateShuffledCodes?.(generated);
       setSelectedSubTab(generated[0]?.code || '101');
       if (onSelectExamCode && generated[0]?.code) {
         onSelectExamCode(generated[0].code);
@@ -171,13 +147,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       );
     } catch (err: unknown) {
       console.error('Shuffle error:', err);
-      toast.error('Lỗi khi trộn mã đề');
+      toast.error(err instanceof Error ? err.message : 'Lỗi khi trộn mã đề');
     }
   };
 
   const handleExportDocx = async (mode: 'full' | 'examOnly') => {
     if (!activeQuestions || activeQuestions.length === 0) {
-      toast.error('Chưa có câu hỏi đề thi! Vui lòng bấm Tạo Đề Thi Với AI trước.');
+      toast.error(releaseMessage || 'Chưa có câu hỏi đề thi.');
       return;
     }
     try {
@@ -204,7 +180,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
   // Download All Variants in a Single ZIP
   const handleDownloadAllZip = async () => {
-    const targetCodes = displayCodes.length > 0 ? displayCodes : shuffledCodes;
+    const targetCodes = displayCodes;
     if (!targetCodes || targetCodes.length === 0) {
       toast.error('Chưa có danh sách mã đề!');
       return;
@@ -253,6 +229,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
   return (
     <div className="space-y-4">
+      {releaseMessage && (
+        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {releaseMessage}
+        </p>
+      )}
       {/* Navigation Tabs */}
       <div className="no-print border-b border-slate-200 bg-white rounded-2xl p-2 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -386,6 +367,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             {/* Xuất Word Ma trận & Đặc tả */}
             <button
               onClick={() => {
+                if (!chuDeList.length || !cauList.length) {
+                  toast.error('Chưa có ma trận và đặc tả để xuất.');
+                  return;
+                }
                 exportMatrixAndSpecsCv7991WordDoc(config, chuDeList, cauList, luat);
                 toast.success('📥 Đang tải file Word Ma trận & Bản đặc tả...');
               }}
@@ -398,7 +383,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
             {/* Xuất Azota / K12 */}
             <button
-              onClick={() => setShowAzotaModal(true)}
+              onClick={() => releaseMessage ? toast.error(releaseMessage) : setShowAzotaModal(true)}
               className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-orange-600 hover:bg-orange-700 text-white cursor-pointer"
               title="Xuất dạng Azota / K12Online"
             >
@@ -428,6 +413,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           activeCompetencies={nangLucList}
           grade={config.grade}
           subject={config.subject}
+          examOrigin={examOrigin ?? null}
           onUpdateCauList={onUpdateCauList}
           showSpecTab={false}
           defaultTab="matrix"
@@ -521,14 +507,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           ) : (
             /* Render Exam Sheet for Active Variant */
             <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-10 shadow-sm">
-              <OfficialExamHeader config={config} activeCode={activeCodeDisplay} />
+              {activeQuestions.length > 0 && <OfficialExamHeader config={config} activeCode={activeCodeDisplay} />}
 
               {activeQuestions.length === 0 ? (
                 <div className="text-center py-12 text-slate-500 space-y-3">
                   <FileText className="w-10 h-10 mx-auto text-slate-300" />
                   <p className="font-semibold text-sm">Chưa có câu hỏi cho đề thi này.</p>
                   <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    Thầy/Cô có thể bấm "TẠO ĐỀ THI VỚI AI" ở bảng cấu hình hoặc nhấn nút dưới đây để nạp ngay bộ đề mẫu chuẩn CV 7991 (gồm 4 mã đề 101 - 104 & Bảng đối chiếu) để trải nghiệm:
+                    Bấm “TẠO ĐỀ VỚI AI” để tạo bộ câu hỏi theo cấu hình hiện tại.
                   </p>
                   {onLoadSampleExam && (
                     <button
@@ -619,6 +605,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                                           key={oIdx}
                                           className="p-1.5 rounded bg-slate-50 border border-slate-200 flex items-center"
                                         >
+                                          <span className="mr-1">{String.fromCharCode(65 + oIdx)}.</span>
                                           <MathRenderer text={opt} />
                                         </div>
                                       ))}
@@ -839,10 +826,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                 const p3 = activeQuestions.filter((q) => q.part === 'part3' || q.type === 'short_answer');
                 const p4 = activeQuestions.filter((q) => q.part === 'part4' || q.type === 'essay');
 
-                const baseP1 = shuffledCodes[0]?.questions.filter((q) => q.part === 'part1' || q.type === 'mcq_single') || [];
-                const baseP2 = shuffledCodes[0]?.questions.filter((q) => q.part === 'part2' || q.type === 'true_false_group') || [];
-                const baseP3 = shuffledCodes[0]?.questions.filter((q) => q.part === 'part3' || q.type === 'short_answer') || [];
-                const baseP4 = shuffledCodes[0]?.questions.filter((q) => q.part === 'part4' || q.type === 'essay') || [];
+                const baseP1 = displayCodes[0]?.questions.filter((q) => q.part === 'part1' || q.type === 'mcq_single') || [];
+                const baseP2 = displayCodes[0]?.questions.filter((q) => q.part === 'part2' || q.type === 'true_false_group') || [];
+                const baseP3 = displayCodes[0]?.questions.filter((q) => q.part === 'part3' || q.type === 'short_answer') || [];
+                const baseP4 = displayCodes[0]?.questions.filter((q) => q.part === 'part4' || q.type === 'essay') || [];
 
                 return (
                   <div className="space-y-6">
@@ -858,7 +845,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                             <thead>
                               <tr className="bg-slate-50 font-bold border-b border-slate-300">
                                 <th className="p-2 border border-slate-300 text-center w-14">STT</th>
-                                {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                {displayCodes.length > 1 && !activeVariant?.isBase && (
                                   <th className="p-2 border border-slate-300 text-center w-28">Vị trí gốc (101)</th>
                                 )}
                                 <th className="p-2 border border-slate-300">Nội dung câu hỏi tóm tắt</th>
@@ -877,7 +864,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                                 return (
                                   <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
                                     <td className="p-2 text-center font-bold text-slate-800">Câu {idx + 1}</td>
-                                    {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                    {displayCodes.length > 1 && !activeVariant?.isBase && (
                                       <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
                                         Phần I - Câu {baseStt}
                                       </td>
@@ -910,7 +897,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                             <thead>
                               <tr className="bg-slate-50 font-bold border-b border-slate-300">
                                 <th className="p-2 border border-slate-300 text-center w-14">STT</th>
-                                {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                {displayCodes.length > 1 && !activeVariant?.isBase && (
                                   <th className="p-2 border border-slate-300 text-center w-28">Vị trí gốc (101)</th>
                                 )}
                                 <th className="p-2 border border-slate-300">Nội dung câu hỏi</th>
@@ -932,7 +919,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                                 return (
                                   <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
                                     <td className="p-2 text-center font-bold text-slate-800">Câu {idx + 1}</td>
-                                    {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                    {displayCodes.length > 1 && !activeVariant?.isBase && (
                                       <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
                                         Phần II - Câu {baseStt}
                                       </td>
@@ -965,7 +952,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                             <thead>
                               <tr className="bg-slate-50 font-bold border-b border-slate-300">
                                 <th className="p-2 border border-slate-300 text-center w-14">STT</th>
-                                {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                {displayCodes.length > 1 && !activeVariant?.isBase && (
                                   <th className="p-2 border border-slate-300 text-center w-28">Vị trí gốc (101)</th>
                                 )}
                                 <th className="p-2 border border-slate-300">Nội dung câu hỏi</th>
@@ -984,7 +971,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                                 return (
                                   <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
                                     <td className="p-2 text-center font-bold text-slate-800">Câu {idx + 1}</td>
-                                    {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                    {displayCodes.length > 1 && !activeVariant?.isBase && (
                                       <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
                                         Phần III - Câu {baseStt}
                                       </td>
@@ -1017,7 +1004,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                             <thead>
                               <tr className="bg-slate-50 font-bold border-b border-slate-300">
                                 <th className="p-2 border border-slate-300 text-center w-14">STT</th>
-                                {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                {displayCodes.length > 1 && !activeVariant?.isBase && (
                                   <th className="p-2 border border-slate-300 text-center w-28">Vị trí gốc (101)</th>
                                 )}
                                 <th className="p-2 border border-slate-300">Nội dung câu hỏi & Hướng dẫn tóm tắt</th>
@@ -1035,7 +1022,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                                 return (
                                   <tr key={q.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
                                     <td className="p-2 text-center font-bold text-slate-800">Câu {idx + 1}</td>
-                                    {shuffledCodes.length > 1 && !activeVariant?.isBase && (
+                                    {displayCodes.length > 1 && !activeVariant?.isBase && (
                                       <td className="p-2 text-center text-slate-500 font-mono text-[11px]">
                                         Phần IV - Câu {baseStt}
                                       </td>
@@ -1132,7 +1119,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       )}
 
       {/* Modal Xuất Azota & K12Online */}
-      {showAzotaModal && (
+      {showAzotaModal && !releaseMessage && (
         <AzotaExportModal
           isOpen={showAzotaModal}
           onClose={() => setShowAzotaModal(false)}

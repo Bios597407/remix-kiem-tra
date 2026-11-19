@@ -4,6 +4,7 @@ import {
   CauItem,
   AuditCheckItem,
   AuditReport,
+  ExamOrigin,
   QuestionType,
   CognitiveLevel,
 } from '../types/exam';
@@ -16,7 +17,7 @@ export function runCv7991Audit(
   chuDeListInput: ChuDeItem[] = [],
   cauListInput: CauItem[] = [],
   luatInput?: LuatConfig,
-  contextInfoInput?: { grade: string; subject: string }
+  contextInfoInput?: { grade: string; subject: string; examOrigin?: ExamOrigin | null }
 ): AuditReport {
   const chuDeList = Array.isArray(chuDeListInput) ? chuDeListInput : [];
   const cauList = Array.isArray(cauListInput) ? cauListInput : [];
@@ -328,20 +329,23 @@ export function runCv7991Audit(
   });
 
   // --- K12 [ERROR]: Cùng Khối/Môn trên toàn bộ hệ thống ---
-  const k12Passed = !!contextInfo.grade && !!contextInfo.subject;
+  const origin = contextInfo.examOrigin;
+  const hasMatchingOrigin = origin?.grade === contextInfo.grade && origin?.subject === contextInfo.subject;
+  const k12Passed = !!contextInfo.grade && !!contextInfo.subject
+    && (origin === undefined || hasMatchingOrigin);
   checks.push({
     id: 'K12',
     ten: 'Đề thi thống nhất đúng 1 Khối lớp và 1 Môn học',
     type: 'ERROR',
     passed: k12Passed,
     cauTrucNhap: `${contextInfo.grade || 'Chưa chọn'} – ${contextInfo.subject || 'Chưa chọn'}`,
-    demDuoc: k12Passed ? `${contextInfo.grade} – ${contextInfo.subject}` : 'THIẾU THÔNG TIN',
-    formula: 'Kiểm tra thuộc tính Khối và Môn học của Tab dữ liệu hiện tại',
+    demDuoc: origin ? `${origin.grade} – ${origin.subject}` : k12Passed ? 'Theo cấu hình' : 'CHƯA CÓ ĐỀ KHỚP',
+    formula: 'Đối chiếu khối và môn của bộ câu hỏi với cấu hình hiện tại',
     sourceLabel: 'Quy tắc của ứng dụng',
     calcMethod: 'Code tính',
     details: k12Passed
       ? `ĐẠT: Dữ liệu thuộc đúng Khối ${contextInfo.grade}, Môn ${contextInfo.subject}.`
-      : 'LỖI: Chưa xác định Khối lớp hoặc Môn học!',
+      : 'LỖI: Chưa có bộ câu hỏi khớp với Khối lớp và Môn học hiện tại.',
   });
 
   // --- K13 [ERROR]: Ma trận khớp Bản đặc tả từng ô dòng/cột ---

@@ -11,6 +11,7 @@ import { runCv7991Audit } from '../utils/cv7991Audit';
 import { ensureExactQuestionCount, applyScoringRules } from '../services/aiGenerator';
 import { exportToAzotaFormat } from '../utils/azotaExporter';
 import { buildStandardExamDocx } from '../utils/docxExporter';
+import { generateShuffledCodes } from '../utils/examShuffler';
 
 export interface TestGroupResult {
   groupName: string;
@@ -710,11 +711,38 @@ export function runAiAndExportIntegrityTests(): TestGroupResult {
   if (isDocxValid) passedCount++;
   logs.push(`Test 6 (Form chuẩn xuất Đề kiểm tra Word .docx thực sự - A4, TNR 12pt, mốc 7.5cm, 3 cấp học): ${isDocxValid ? 'ĐẠT (Khớp 100% quy định A4, lề 2.5/2.0cm, 12pt, căn 7.5cm, 2 khối đầu trang, đáp án & rubric cho Tiểu học/THCS/THPT)' : 'THẤT BẠI'}`);
 
+  const mismatchedExam = runCv7991Audit(chuDeDummy, alloc.cauList, PRESETS['3-4-3'].luat, {
+    grade: '12',
+    subject: 'Công nghệ',
+    examOrigin: { grade: '12', subject: 'Toán học' },
+  });
+  const wrongSubjectRejected = mismatchedExam.checks.some((check) => check.id === 'K12' && !check.passed);
+  if (wrongSubjectRejected) passedCount++;
+  logs.push(`Test 7 (K12 từ chối bộ đề lấy từ môn khác): ${wrongSubjectRejected ? 'ĐẠT' : 'THẤT BẠI'}`);
+
+  const source = testAzotaQuestions[0];
+  const options = ['A. Quãng đường chia thời gian', 'B. B. Thời gian nhân quãng đường', 'C. Gia tốc chia vận tốc', 'D. Lực chia khối lượng'];
+  const codes = generateShuffledCodes([{ ...source, options }, testAzotaQuestions[1]], {
+    balancePart1Answers: true,
+    variantCount: 4,
+  });
+  const aligned = codes.length === 4 && codes.every((code) => {
+    const question = code.questions[0];
+    const answer = String(question.correctAnswer);
+    const index = 'ABCD'.indexOf(answer);
+    return question.options?.[index] === 'Quãng đường chia thời gian'
+      && question.options.every((option) => !/^[A-D][.)]/.test(option))
+      && code.quickAnswers[0].answer === answer
+      && code.mappingFromBase?.[0]?.newCorrectAnswer === answer;
+  });
+  if (aligned) passedCount++;
+  logs.push(`Test 8 (Bốn mã đề giữ đúng phương án và bảng đối chiếu): ${aligned ? 'ĐẠT' : 'THẤT BẠI'}`);
+
   return {
     groupName: '6. AI Generation & Export Integrity Tests (P3: Soạn câu hỏi AI, Khóa xuất file & Định dạng Azota/Word .docx)',
     description: 'Kiểm tra khóa xuất file khi ma trận lỗi, mở khóa khi đạt chuẩn, ràng buộc số lượng/điểm bằng code, định dạng Azota, và Form chuẩn Word .docx A4 TNR 12pt cho 3 cấp học.',
-    passed: passedCount === 6,
-    totalRun: 6,
+    passed: passedCount === 8,
+    totalRun: 8,
     passedRun: passedCount,
     logs,
   };

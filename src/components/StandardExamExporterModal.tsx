@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { FileText, Download, Printer, X, FileCheck, Sliders, ChevronDown, ChevronUp } from 'lucide-react';
 import { QuestionItem, ExamConfig, ShuffledExamCode } from '../types/exam';
-import { downloadStandardFormDocx, balanceMcqAnswerKeys } from '../utils/docxExporter';
+import { downloadStandardFormDocx } from '../utils/docxExporter';
 import { downloadAllExamCodesZip } from '../utils/multiCodeExporter';
-import { generateShuffledCodes } from '../utils/examShuffler';
 import MathRenderer from '../utils/mathRenderer';
 
 interface StandardExamExporterModalProps {
@@ -25,10 +24,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
   shuffledCodes = [],
   initialExamCode = '101',
 }) => {
-  if (!isOpen) return null;
-
   const [pageSize, setPageSize] = useState<'A4' | 'Letter'>(config.pageSize || 'A4');
-  const [balanceAnswers, setBalanceAnswers] = useState<boolean>(config.balanceAnswersOption ?? true);
 
   // Unit configuration state (saved in user config, editable per exam, default pre-filled)
   const [department, setDepartment] = useState<string>(
@@ -40,7 +36,9 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
   const [showOfficial, setShowOfficial] = useState<boolean>(
     config.showOfficialBadge !== false
   );
-  const [examCode, setExamCode] = useState<string>(initialExamCode || '101');
+  const [examCode, setExamCode] = useState<string>(
+    shuffledCodes.find((code) => code.code === initialExamCode)?.code || shuffledCodes[0]?.code || '101'
+  );
   const [examTitle, setExamTitle] = useState<string>(
     config.examTitle || 'ĐỀ KIỂM TRA ĐỊNH KỲ GIỮA HỌC KỲ I'
   );
@@ -57,24 +55,8 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
     (config.appUiScale as any) || 'standard'
   );
 
-  // Fallback to auto-generated 4 codes if questions exist
-  const effectiveCodes = React.useMemo(() => {
-    if (shuffledCodes && shuffledCodes.length > 0) return shuffledCodes;
-    if (questions && questions.length > 0) {
-      return generateShuffledCodes(questions, { variantCount: 4, namingPreset: '101' }, config.grade);
-    }
-    return [];
-  }, [shuffledCodes, questions, config.grade]);
-
-  // Determine current questions: if effectiveCodes has the selected code, use its questions
-  const currentQuestions = React.useMemo(() => {
-    if (effectiveCodes && effectiveCodes.length > 0) {
-      const found = effectiveCodes.find((c) => c.code === examCode);
-      if (found) return found.questions;
-    }
-    return questions;
-  }, [effectiveCodes, examCode, questions]);
-
+  const effectiveCodes = shuffledCodes;
+  const activeQuestions = effectiveCodes.find((code) => code.code === examCode)?.questions || questions;
 
   const getScaleStyle = (scale: 'compact' | 'standard' | 'relaxed') => {
     switch (scale) {
@@ -87,9 +69,6 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
         return { fontSize: '16px', lineHeight: 1.5 };
     }
   };
-
-  // Apply answer balancing if option is ON
-  const activeQuestions = balanceAnswers ? balanceMcqAnswerKeys(currentQuestions) : currentQuestions;
 
   const rawSubject = (config.customSubject || config.subject || 'Khoa học tự nhiên').trim();
   const subjectUpper = rawSubject.toUpperCase();
@@ -147,7 +126,6 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
     academicYear,
     durationMinutes: duration,
     pageSize,
-    balanceAnswersOption: balanceAnswers,
     manualPageCount: manualPageInput.trim() !== '' ? parseInt(manualPageInput, 10) : undefined,
   });
 
@@ -171,6 +149,8 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
     if (onChangeConfig) onChangeConfig(updated);
     window.print();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-3 sm:p-5 backdrop-blur-xs">
@@ -272,21 +252,6 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
               </select>
             </div>
 
-            {/* Answer Balancing Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={balanceAnswers}
-                onChange={(e) => {
-                  setBalanceAnswers(e.target.checked);
-                  if (onChangeConfig) onChangeConfig({ ...config, balanceAnswersOption: e.target.checked });
-                }}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-slate-300"
-              />
-              <span className="font-bold text-slate-700">
-                Cân bằng vị trí đáp án đúng (A, B, C, D)
-              </span>
-            </label>
           </div>
 
           {/* Action Buttons */}
@@ -496,17 +461,21 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                             <tbody>
                               <tr>
                                 <td className="w-1/2 align-top py-0.5 pr-2">
+                                  <span className="mr-1">A.</span>
                                   <MathRenderer text={q.options[0]} />
                                 </td>
                                 <td className="w-1/2 align-top py-0.5 pl-2">
+                                  <span className="mr-1">B.</span>
                                   <MathRenderer text={q.options[1]} />
                                 </td>
                               </tr>
                               <tr>
                                 <td className="w-1/2 align-top py-0.5 pr-2">
+                                  <span className="mr-1">C.</span>
                                   <MathRenderer text={q.options[2]} />
                                 </td>
                                 <td className="w-1/2 align-top py-0.5 pl-2">
+                                  <span className="mr-1">D.</span>
                                   <MathRenderer text={q.options[3]} />
                                 </td>
                               </tr>
