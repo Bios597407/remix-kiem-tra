@@ -45,9 +45,14 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
 
   const showTln = matrixData.showTln;
 
-  const formatScore = (num: number) => {
-    return num % 1 === 0 ? `${num},0` : num.toFixed(1).replace('.', ',');
-  };
+  const formatScore = (num: number) => num.toLocaleString('vi-VN', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  });
+  const essayCount = new Set(cauList.filter((item) => item.dang === 'TL').map((item) => item.cauSo)).size;
+  const essaySummary = activeLuat.tlUnit === 'y'
+    ? `${essayCount} câu (${matrixData.typeGrandTotals.TL.count} ý)`
+    : `${matrixData.typeGrandTotals.TL.count} câu`;
 
   const formatPercent = (num: number) => {
     if (num === undefined || num === null || isNaN(num)) return '0%';
@@ -212,7 +217,7 @@ export const OfficialMatrixTable: React.FC<OfficialMatrixTableProps> = ({
               )}
 
               <td colSpan={3} className="border border-black p-1">
-                {matrixData.typeGrandTotals.TL.count > 0 ? `${matrixData.typeGrandTotals.TL.count} ${activeLuat.tlUnit === 'y' ? 'ý' : 'câu'}` : ''}
+                {matrixData.typeGrandTotals.TL.count > 0 ? essaySummary : ''}
               </td>
 
               <td className="border border-black p-1 bg-slate-200">{matrixData.levelGrandTotals.Biet.count}</td>

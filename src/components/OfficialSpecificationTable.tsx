@@ -47,9 +47,14 @@ export const OfficialSpecificationTable: React.FC<OfficialSpecificationTableProp
   const showTln = matrixData.showTln;
   const showQuestionCol = !!activeLuat.showQuestionColInSpec;
 
-  const formatScore = (num: number) => {
-    return num % 1 === 0 ? `${num},0` : num.toFixed(1).replace('.', ',');
-  };
+  const formatScore = (num: number) => num.toLocaleString('vi-VN', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  });
+  const essayCount = new Set(cauList.filter((item) => item.dang === 'TL').map((item) => item.cauSo)).size;
+  const essaySummary = activeLuat.tlUnit === 'y'
+    ? `${essayCount} câu (${matrixData.typeGrandTotals.TL.count} ý)`
+    : `${matrixData.typeGrandTotals.TL.count} câu`;
 
   if (!chuDeList || chuDeList.length === 0 || chuDeList.every((c) => c.noiDung.length === 0)) {
     return (
@@ -287,7 +292,7 @@ export const OfficialSpecificationTable: React.FC<OfficialSpecificationTableProp
               )}
 
               <td colSpan={3} className="border border-black p-1">
-                {matrixData.typeGrandTotals.TL.count > 0 ? `${matrixData.typeGrandTotals.TL.count} ${activeLuat.tlUnit === 'y' ? 'ý' : 'câu'}` : ''}
+                {matrixData.typeGrandTotals.TL.count > 0 ? essaySummary : ''}
               </td>
             </tr>
 
