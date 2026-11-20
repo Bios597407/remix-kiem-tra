@@ -137,6 +137,7 @@ export interface QuestionItem {
   correctAnswer: string | boolean | string[];
   explanation: string;
   rubric?: RubricStep[];
+  essayParts?: Array<{ positionId: string; question: string; answer: string }>;
   distractorAnalysis?: Record<string, string>;
   score: number;
   yccdCode?: string;

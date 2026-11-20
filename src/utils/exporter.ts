@@ -744,7 +744,7 @@ export function exportStandardExamWordDoc(
     const qScoreStr = q.score ? `(${fmtScore(q.score)} điểm)` : '';
     return `
     <div class="question-item">
-      <div><b>Câu ${currentNum} ${qScoreStr}:</b> ${formatLatexToWordUnicode(q.question)}</div>
+      <div><b>Câu ${currentNum} ${qScoreStr}:</b> ${formatLatexToWordUnicode(q.question).replace(/\n/g, '<br>')}</div>
     </div>`;
   }).join('')}
   ` : ''}

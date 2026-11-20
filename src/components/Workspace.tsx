@@ -159,7 +159,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   };
 
   const handleExportDocx = async (mode: 'full' | 'examOnly') => {
-    if (!activeQuestions || activeQuestions.length === 0) {
+    if (releaseMessage || !activeQuestions || activeQuestions.length === 0) {
       toast.error(releaseMessage || 'Chưa có câu hỏi đề thi.');
       return;
     }
@@ -187,6 +187,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
   // Download All Variants in a Single ZIP
   const handleDownloadAllZip = async () => {
+    if (releaseMessage) {
+      toast.error(releaseMessage);
+      return;
+    }
     const targetCodes = displayCodes;
     if (!targetCodes || targetCodes.length === 0) {
       toast.error('Chưa có danh sách mã đề!');
@@ -743,7 +747,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                                   className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
                                 >
                                   <div className="font-bold flex items-start justify-between">
-                                    <div>
+                                    <div className="whitespace-pre-line">
                                       Câu {idx + 1} ({q.score || 1.0} điểm): <MathRenderer text={q.question} />
                                     </div>
                                   </div>

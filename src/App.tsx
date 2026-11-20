@@ -24,6 +24,7 @@ import {
 } from './types/exam';
 
 import { generateExamQuestions } from './services/aiGenerator';
+import { essayReleaseError } from './utils/essayAssessment';
 import { generateCauAllocation } from './utils/cv7991Engine';
 import { buildManualAssessmentPlan } from './utils/manualAssessmentPlan';
 import { runCv7991Audit } from './utils/cv7991Audit';
@@ -567,12 +568,16 @@ export default function App() {
     }
   };
 
-  const releaseBlocked = currentTabState.generatedQuestions.length === 0
+  const essayError = currentTabState.generatedQuestions.length
+    ? essayReleaseError(currentTabState.generatedQuestions, currentTabState.cauList)
+      || currentTabState.shuffledCodes?.map((code) => essayReleaseError(code.questions, currentTabState.cauList)).find(Boolean)
+    : undefined;
+  const releaseBlocked = !!essayError || currentTabState.generatedQuestions.length === 0
     || currentTabState.examOrigin?.grade !== config.grade
     || currentTabState.examOrigin?.subject !== config.subject;
-  const releaseMessage = currentTabState.examNeedsRegeneration
+  const releaseMessage = essayError ?? (currentTabState.examNeedsRegeneration
     ? 'Cấu hình đã thay đổi. Hãy tạo lại đề trước khi xuất.'
-    : 'Chưa có câu hỏi. Hãy tạo đề trước khi xuất.';
+    : 'Chưa có câu hỏi. Hãy tạo đề trước khi xuất.');
   const openStandardExporter = () => {
     if (releaseBlocked) {
       toast.error(releaseMessage);

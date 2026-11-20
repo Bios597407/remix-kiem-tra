@@ -568,7 +568,7 @@ export const StandardExamExporterModal: React.FC<StandardExamExporterModalProps>
                     const qNum = idx + 1;
                     return (
                       <div key={q.id || idx} className="space-y-1">
-                        <p className="font-serif">
+                        <p className="font-serif whitespace-pre-line">
                           <strong className="font-bold">Câu {qNum} ({fmtScore(q.score || 1.0)} điểm). </strong>
                           <MathRenderer text={q.question} />
                         </p>
