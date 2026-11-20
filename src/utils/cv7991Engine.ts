@@ -636,6 +636,7 @@ export interface UnifiedRowData {
   rowspanChuDe?: number;
   isFirstInChuDe?: boolean;
   yccdList: YccdItem[];
+  yccdByLevel: Record<CognitiveLevel, YccdItem[]>;
 
   // Cells by QuestionType & CognitiveLevel
   matrixCells: Record<QuestionType, Record<CognitiveLevel, MatrixCellData>>;
@@ -706,6 +707,10 @@ export function getUnifiedMatrixSpecData(
 
     // Filter questions belonging to this content
     const ndCauList = cauList.filter((c) => c.noiDungId === nd.id);
+    const yccdAt = (level: CognitiveLevel) => {
+      const codes = new Set(ndCauList.filter((c) => c.muc === level).flatMap((c) => c.maYCCD));
+      return nd.yccd.filter((outcome) => codes.has(outcome.ma));
+    };
 
     const matrixCells: Record<QuestionType, Record<CognitiveLevel, MatrixCellData>> = {
       NLC: { Biet: { count: 0, displayStr: '', questionNumbersStr: '', score: 0 }, Hieu: { count: 0, displayStr: '', questionNumbersStr: '', score: 0 }, VanDung: { count: 0, displayStr: '', questionNumbersStr: '', score: 0 } },
@@ -731,7 +736,7 @@ export function getUnifiedMatrixSpecData(
           let displayStr = '';
           let questionNumbersStr = '';
 
-          if (type === 'NLC' || type === 'TLN' || type === 'TL') {
+          if (type !== 'DS' && !(type === 'TL' && matchingCau.some((item) => item.y))) {
             const numSet = Array.from(new Set(matchingCau.map((c) => c.cauSo || 1))).sort((a, b) => a - b);
             if (numSet.length === 1) {
               questionNumbersStr = `Câu ${numSet[0]}`;
@@ -739,7 +744,7 @@ export function getUnifiedMatrixSpecData(
               questionNumbersStr = `Câu ${numSet.join(', ')}`;
             }
             displayStr = `${count} (${questionNumbersStr})`;
-          } else if (type === 'DS') {
+          } else {
             // Group sub-items by big question number
             const dsGroupMap = new Map<number, string[]>();
             matchingCau.forEach((c) => {
@@ -750,7 +755,7 @@ export function getUnifiedMatrixSpecData(
 
             const dsParts: string[] = [];
             dsGroupMap.forEach((subList, qNum) => {
-              if (subList.length === 4) {
+              if (type === 'DS' && subList.length === luat.dsSubItems) {
                 dsParts.push(`Câu ${qNum}`);
               } else {
                 dsParts.push(`Câu ${qNum}: ý ${subList.join(', ')}`);
@@ -783,6 +788,7 @@ export function getUnifiedMatrixSpecData(
       rowspanChuDe,
       isFirstInChuDe,
       yccdList: nd.yccd,
+      yccdByLevel: { Biet: yccdAt('Biet'), Hieu: yccdAt('Hieu'), VanDung: yccdAt('VanDung') },
       matrixCells,
       rowTotalCount,
       rowTotalScore: roundedRowScore,

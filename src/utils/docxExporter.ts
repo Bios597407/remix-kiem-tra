@@ -819,11 +819,12 @@ export function buildStandardExamDocx(
               size: FONT_SIZE_12PT,
               bold: true,
             }),
-            new TextRun({
-              text: cleanedQuestion,
+            ...cleanedQuestion.split('\n').map((line, index) => new TextRun({
+              text: line,
+              break: index > 0 ? 1 : undefined,
               font: FONT_FAMILY,
               size: FONT_SIZE_12PT,
-            }),
+            })),
           ],
         })
       );
@@ -2091,12 +2092,12 @@ export function buildStandardFormDocx(
               bold: true,
               color: '000000',
             }),
-            new TextRun({
-              text: cleanedQuestion,
+            ...cleanedQuestion.split('\n').map((line, index) => new TextRun({
+              text: line,
+              break: index > 0 ? 1 : undefined,
               font: FONT_FAMILY,
               size: 22,
-              color: '000000',
-            }),
+            })),
           ],
         })
       );

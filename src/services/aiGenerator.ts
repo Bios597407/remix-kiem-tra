@@ -3,6 +3,7 @@ import { fetchGeminiWithFallback, extractTextFromGeminiResponse, DEFAULT_MODEL, 
 import { normalizeExamQuestions, safeString } from '../utils/dataNormalizer';
 import { getCachedFileAsBase64 } from '../utils/memoryManager';
 import { getAllNoiDungList } from '../utils/cv7991Engine';
+import { applyEssayPlan, balanceRubric, essayReleaseError, groupedEssayPositions } from '../utils/essayAssessment';
 
 export interface GenerationProgressCallback {
   (step: number, message: string): void;
@@ -61,24 +62,23 @@ export async function generateExamQuestions(
   }
 
   try {
-    let generatedQuestions = await callGeminiAPI(config, activeApiKey, isEquivalentMode, cauList, chuDeList, luat);
-
-    // Guaranteed 100% exact count matching configuration and cauList
-    generatedQuestions = ensureExactQuestionCount(generatedQuestions, config, cauList, chuDeList, luat);
+    const generated = await callGeminiAPI(config, activeApiKey, isEquivalentMode, cauList, chuDeList, luat);
+    const selected = fixedQuestions.length ? [...fixedQuestions, ...generated.slice(fixedQuestions.length)] : generated;
+    const generatedQuestions = ensureExactQuestionCount(selected, config, cauList, chuDeList, luat);
 
     onProgress?.(5, 'Đang tính toán biểu điểm và phân bổ thang điểm...');
     await delay(150);
-    applyScoringRules(generatedQuestions, config, cauList, luat);
+    const groups = groupedEssayPositions(cauList);
+    if (groups.length) applyEssayPlan(generatedQuestions, groups);
+    const essayError = essayReleaseError(generatedQuestions, cauList);
+    if (essayError) throw new Error(essayError);
+    const total = generatedQuestions.reduce((sum, q) => sum + Math.round(q.score * 100), 0);
+    if (groups.length && total !== Math.round((config.totalScore || 10) * 100)) {
+      throw new Error('Đề chưa đúng cấu trúc điểm đã chốt trong đặc tả.');
+    }
 
     onProgress?.(6, 'Đang kiểm tra và chuẩn hóa hướng dẫn chấm...');
     await delay(150);
-
-    if (fixedQuestions.length > 0) {
-      const merged = [...fixedQuestions, ...generatedQuestions.slice(fixedQuestions.length)];
-      const finalSet = ensureExactQuestionCount(merged, config, cauList, chuDeList, luat);
-      applyScoringRules(finalSet, config, cauList, luat);
-      return finalSet;
-    }
 
     return generatedQuestions;
   } catch (err: unknown) {
@@ -121,7 +121,7 @@ export function translateErrorToVietnamese(errorText: string): string {
   ) {
     return 'Lỗi kết nối mạng internet! Vui lòng kiểm tra lại đường truyền wifi hoặc kết nối mạng của bạn.';
   }
-  if (lower.includes('chưa đúng cấu trúc')) {
+  if (lower.includes('chưa đúng cấu trúc') || lower.startsWith('tự luận')) {
     return errorText;
   }
 
@@ -139,7 +139,7 @@ async function callGeminiAPI(
   const p1 = cauList && cauList.length > 0 ? cauList.filter(c => c.dang === 'NLC').length : (luat?.nlcCount ?? config.sectionCounts.part1 ?? 12);
   const p2 = cauList && cauList.length > 0 ? new Set(cauList.filter(c => c.dang === 'DS').map(c => c.cauSo || 1)).size : (luat?.dsCount ?? config.sectionCounts.part2 ?? 4);
   const p3 = cauList && cauList.length > 0 ? cauList.filter(c => c.dang === 'TLN').length : (luat?.tlnCount ?? config.sectionCounts.part3 ?? 0);
-  const p4 = cauList && cauList.length > 0 ? (luat?.tlUnit === 'y' ? cauList.filter(c => c.dang === 'TL').length : new Set(cauList.filter(c => c.dang === 'TL').map(c => c.cauSo || 1)).size) : (luat?.tlCount ?? config.sectionCounts.part4 ?? 3);
+  const p4 = cauList && cauList.length > 0 ? new Set(cauList.filter(c => c.dang === 'TL').map(c => c.cauSo || 1)).size : (luat?.tlCount ?? config.sectionCounts.part4 ?? 3);
 
   const subject = config.customSubject || config.subject || 'Môn học';
   const cognitiveList =
@@ -243,7 +243,8 @@ ${tlnCau.map((c, i) => {
 ${tlCau.map((c, i) => {
   const nd = ndMap.get(c.noiDungId);
   const ndName = nd ? nd.ten : c.noiDungId;
-  return `   - Câu ${i + 1}: Mức ${c.muc}, Nội dung "${ndName}", YCCĐ: [${c.maYCCD?.join(', ')}], Điểm: ${c.diem}đ`;
+  const outcomes = c.maYCCD.map((code) => nd?.yccd.find((item) => item.ma === code)?.noiDung || code);
+  return `   - Câu ${c.cauSo ?? i + 1}${c.y ? ` ý ${c.y} (${c.id})` : ''}: Mức ${c.muc}, Nội dung "${ndName}", YCCĐ: [${outcomes.join('; ')}], Điểm: ${c.diem}đ`;
 }).join('\n')}
 `;
   }
@@ -306,6 +307,15 @@ QUY CHUẨN THCS & THPT (THEO CÔNG VĂN 7991/BGDĐT-GDTrH & THÔNG TƯ 22/2021/
    - Nếu nội dung thiếu YCCĐ, BẮT BUỘC ghi rõ nhãn "THIẾU YCCĐ – cần bổ sung", TUYỆT ĐỐI KHÔNG điền chữ chung chung suy đoán!`;
   }
 
+  const essayGroups = groupedEssayPositions(cauList);
+  const essayJsonInstruction = essayGroups.length ? `
+TỰ LUẬN THEO TỪNG Ý (chỉ áp dụng part4):
+- Mỗi câu lớn là một đối tượng JSON. Trường "question" chỉ ghi dữ kiện chung hoặc để trống.
+- Bắt buộc dùng "essayParts": [{"positionId": "mã vị trí trong bảng", "question": "câu hỏi riêng của ý", "answer": "đáp án và hướng dẫn chấm riêng của ý"}].
+- Dùng chính xác các mã sau, theo đúng thứ tự câu; mỗi mã đúng một lần. Giáo viên đã chốt điểm cho từng mã, hệ thống tự gán điểm.
+${essayGroups.map(group => group.map(position => `${position.y}) ${position.id}`).join(', ')).join('\n')}
+` : '';
+
   // Master Prompt
   const prompt = `Bạn là Chuyên gia Khảo thí và Đo lường Giáo dục hàng đầu của Bộ Giáo dục & Đào tạo Việt Nam.
 ${referenceContext}
@@ -321,12 +331,13 @@ ${noDocumentInstruction}
 ${tierPromptRules}
 
 ${questionBlueprint}
+${essayJsonInstruction}
 
 CẤU TRÚC SỐ LƯỢNG CÂU BẮT BUỘC (PHẢI KHỚP 100%):
 - Phần I (Trắc nghiệm nhiều lựa chọn): ${p1} câu.
 - Phần II (Trắc nghiệm Đúng/Sai 4 ý): ${p2} câu.
 - Phần III (Trả lời ngắn): ${p3} câu.
-- Phần IV (Tự luận): ${p4} câu.
+- Phần IV (Tự luận): ${p4} câu. Giữ các ý a/b/... trong cùng câu lớn theo bảng phân bổ; thể hiện từng ý trong đề và hướng dẫn chấm.
 
 YÊU CẦU ĐỊNH DẠNG JSON (Mảng các đối tượng QuestionItem):
 [
@@ -444,12 +455,6 @@ export function applyScoringRules(
       const perEssay = Number((tlTotalTarget / essayQuestions.length).toFixed(2));
       essayQuestions.forEach((q) => {
         q.score = perEssay;
-        if (q.rubric && q.rubric.length > 0) {
-          const stepPt = Number((perEssay / q.rubric.length).toFixed(2));
-          q.rubric.forEach((r) => {
-            r.point = stepPt;
-          });
-        }
       });
     }
   } else {
@@ -477,12 +482,6 @@ export function applyScoringRules(
       const perEssay = Number((remaining / part4.length).toFixed(2));
       part4.forEach((q) => {
         q.score = perEssay;
-        if (q.rubric && q.rubric.length > 0) {
-          const stepPt = Number((perEssay / q.rubric.length).toFixed(2));
-          q.rubric.forEach((r) => {
-            r.point = stepPt;
-          });
-        }
       });
     } else {
       const currentSum = questions.reduce((s, q) => s + (q.score || 0), 0);
@@ -501,6 +500,8 @@ export function applyScoringRules(
       (questions[questions.length - 1].score + diff).toFixed(2)
     );
   }
+  questions.filter((q) => q.part === 'part4' || q.type === 'essay' || (isPrimary && q.part !== 'part1'))
+    .forEach(balanceRubric);
 }
 
 function delay(ms: number): Promise<void> {
@@ -517,13 +518,13 @@ export function ensureExactQuestionCount(
   const p1 = cauList && cauList.length > 0 ? cauList.filter(c => c.dang === 'NLC').length : (luat?.nlcCount ?? config.sectionCounts.part1 ?? 12);
   const p2 = cauList && cauList.length > 0 ? new Set(cauList.filter(c => c.dang === 'DS').map(c => c.cauSo || 1)).size : (luat?.dsCount ?? config.sectionCounts.part2 ?? 4);
   const p3 = cauList && cauList.length > 0 ? cauList.filter(c => c.dang === 'TLN').length : (luat?.tlnCount ?? config.sectionCounts.part3 ?? 0);
-  const p4 = cauList && cauList.length > 0 ? (luat?.tlUnit === 'y' ? cauList.filter(c => c.dang === 'TL').length : new Set(cauList.filter(c => c.dang === 'TL').map(c => c.cauSo || 1)).size) : (luat?.tlCount ?? config.sectionCounts.part4 ?? 3);
+  const p4 = cauList && cauList.length > 0 ? new Set(cauList.filter(c => c.dang === 'TL').map(c => c.cauSo || 1)).size : (luat?.tlCount ?? config.sectionCounts.part4 ?? 3);
 
   const topic = config.topicTitle || config.customSubject || config.subject || 'Kiến thức trọng tâm';
 
   // 1. Strictly normalize part and type for all input questions
   const normalized = (Array.isArray(questions) ? questions : [])
-    .filter(q => q && safeString(q.question).trim().length > 1) // Filter out truly empty/invalid questions
+    .filter(q => q && (safeString(q.question).trim().length > 1 || (q.part === 'part4' && q.essayParts?.length)))
     .map((q, idx) => {
     let part = q.part;
     let type = q.type;
@@ -559,6 +560,20 @@ export function ensureExactQuestionCount(
   const part2 = normalized.filter((q) => q.part === 'part2');
   const part3 = normalized.filter((q) => q.part === 'part3');
   const part4 = normalized.filter((q) => q.part === 'part4');
+
+  if (cauList?.length) {
+    const parts = [
+      { questions: part1, expected: p1, label: 'nhiều lựa chọn' },
+      { questions: part2, expected: p2, label: 'Đúng–Sai' },
+      { questions: part3, expected: p3, label: 'trả lời ngắn' },
+      { questions: part4, expected: p4, label: 'tự luận' },
+    ];
+    const mismatch = parts.filter((part) => part.questions.length !== part.expected);
+    if (mismatch.length) {
+      throw new Error(`Đề chưa đúng cấu trúc: ${mismatch.map((part) =>
+        `phần ${part.label} cần ${part.expected} câu, nhận được ${part.questions.length}`).join('; ')}.`);
+    }
+  }
 
   // Fix Part 1
   while (part1.length < p1) {

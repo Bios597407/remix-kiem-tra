@@ -42,9 +42,9 @@ import OfficialSpecificationTable from './OfficialSpecificationTable';
 import InteractiveMatrixDashboard from './InteractiveMatrixDashboard';
 import {
   exportFullDossierCv7991WordDoc,
-  exportMatrixAndSpecsCv7991WordDoc,
   exportStandardExamWordDoc,
 } from '../utils/exporter';
+import { exportMatrixSpecDocx } from '../utils/matrixSpecDocx';
 import { downloadStandardExamDocx } from '../utils/docxExporter';
 import { downloadAllExamCodesZip } from '../utils/multiCodeExporter';
 import { generateShuffledCodes } from '../utils/examShuffler';
@@ -67,7 +67,14 @@ interface WorkspaceProps {
   onPrint: (type: 'exam' | 'answers' | 'matrix' | 'spec' | 'study_guide' | 'full', examCode?: string) => void;
   onOpenStandardExporter?: () => void;
   onConfigChange?: (updated: ExamConfig) => void;
-  auditPassed: boolean;
+  planReview: {
+    matrixApproved: boolean;
+    specApproved: boolean;
+    canApprove: boolean;
+    errors: string[];
+    approveMatrix: () => void;
+    approveSpec: () => void;
+  };
   shuffledCodes?: ShuffledExamCode[];
   onUpdateShuffledCodes?: (codes: ShuffledExamCode[]) => void;
   activeExamCode?: string;
@@ -90,7 +97,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onPrint,
   onOpenStandardExporter,
   onConfigChange,
-  auditPassed,
+  planReview,
   shuffledCodes: displayCodes = [],
   onUpdateShuffledCodes,
   activeExamCode: externalActiveCode,
@@ -152,7 +159,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   };
 
   const handleExportDocx = async (mode: 'full' | 'examOnly') => {
-    if (!activeQuestions || activeQuestions.length === 0) {
+    if (releaseMessage || !activeQuestions || activeQuestions.length === 0) {
       toast.error(releaseMessage || 'Chưa có câu hỏi đề thi.');
       return;
     }
@@ -180,6 +187,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
   // Download All Variants in a Single ZIP
   const handleDownloadAllZip = async () => {
+    if (releaseMessage) {
+      toast.error(releaseMessage);
+      return;
+    }
     const targetCodes = displayCodes;
     if (!targetCodes || targetCodes.length === 0) {
       toast.error('Chưa có danh sách mã đề!');
@@ -366,16 +377,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
             {/* Xuất Word Ma trận & Đặc tả */}
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!chuDeList.length || !cauList.length) {
                   toast.error('Chưa có ma trận và đặc tả để xuất.');
                   return;
                 }
-                exportMatrixAndSpecsCv7991WordDoc(config, chuDeList, cauList, luat);
-                toast.success('📥 Đang tải file Word Ma trận & Bản đặc tả...');
+                try {
+                  await exportMatrixSpecDocx(config, chuDeList, cauList, luat);
+                  toast.success('Đã xuất Word ma trận và bản đặc tả.');
+                } catch {
+                  toast.error('Chưa xuất được Word ma trận và bản đặc tả.');
+                }
               }}
               className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
-              title="Xuất Ma trận & Bản đặc tả sang Word (.doc)"
+              title="Xuất Ma trận & Bản đặc tả sang Word (.docx)"
             >
               <Grid className="h-3.5 w-3.5" />
               <span>Ma Trận & Đặc Tả</span>
@@ -403,6 +418,27 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           </div>
         </div>
       </div>
+
+      {(activeTab === 'matrix' || activeTab === 'spec') && cauList.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm">
+          <span role="status">
+            {activeTab === 'matrix'
+              ? (planReview.matrixApproved ? 'A đã duyệt' : 'A chờ duyệt')
+              : (planReview.specApproved ? 'B đã duyệt'
+                : planReview.matrixApproved ? 'B chờ duyệt' : 'B chờ duyệt A')}
+          </span>
+          <button
+            type="button"
+            className="rounded bg-indigo-700 px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+            disabled={!planReview.canApprove || (activeTab === 'spec' && !planReview.matrixApproved)
+              || (activeTab === 'matrix' ? planReview.matrixApproved : planReview.specApproved)}
+            onClick={activeTab === 'matrix' ? planReview.approveMatrix : planReview.approveSpec}
+          >
+            {activeTab === 'matrix' ? 'Duyệt A' : 'Duyệt B'}
+          </button>
+          {!!planReview.errors.length && <span>Kiểm các mục {planReview.errors.join(', ')} trước khi duyệt.</span>}
+        </div>
+      )}
 
       {/* Tab Content 1: MA TRẬN ĐỀ KIỂM TRA (VỚI BẢNG CÂU & AUDIT) */}
       {activeTab === 'matrix' && (
@@ -711,7 +747,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                                   className="space-y-2 p-3 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
                                 >
                                   <div className="font-bold flex items-start justify-between">
-                                    <div>
+                                    <div className="whitespace-pre-line">
                                       Câu {idx + 1} ({q.score || 1.0} điểm): <MathRenderer text={q.question} />
                                     </div>
                                   </div>
